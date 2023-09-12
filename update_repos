@@ -1,0 +1,106 @@
+#!/usr/local/var/rbenv/shims/ruby
+
+ENV['RBENV_ROOT'] ||= '/usr/local/var/rbenv'
+`which rbenv > /dev/null 2>&1`
+if $?.success?
+  `eval "$(rbenv init -)"`
+end
+
+require 'oj'
+require 'net/http'
+require 'uri'
+require 'colorize'
+
+def log_success(message)
+  puts "[SUCCESS] ".green + message
+end
+
+def log_error(message)
+  puts "[ERROR] ".red + message
+end
+
+def get_github_repo_from_search(gem_name)
+  uri = URI("https://api.github.com/search/repositories?q=#{gem_name}+language:ruby")
+  req = Net::HTTP::Get.new(uri)
+  req['Accept'] = 'application/vnd.github.v3+json'
+  req['User-Agent'] = 'RubyGemRepoLookup'
+
+  res = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) { |http| http.request(req) }
+  data = Oj.load(res.body)
+  if data['items'] && !data['items'].empty?
+    data['items'][0]['html_url']
+  else
+    log_error("GitHub repo not found for gem: #{gem_name}")
+    nil
+  end
+end
+
+
+def get_github_repo(package_name, package_type, github_info = nil)
+  repo_url = nil
+  case package_type
+  when 'npm'
+    uri = URI("https://registry.npmjs.org/#{package_name}")
+    response = Net::HTTP.get(uri)
+    repo_url = Oj.load(response)['repository']['url'] if Oj.load(response)['repository']
+    if repo_url
+      log_success("Found GitHub repo for npm package #{package_name}: #{repo_url}")
+    else
+      log_error("GitHub repo not found for npm package: #{package_name}")
+    end
+  when 'gem'
+    if github_info
+      repo_url = "https://github.com/#{github_info[:user]}/#{github_info[:repo]}"
+    else
+      uri = URI("https://rubygems.org/api/v1/gems/#{package_name}.json")
+      response = Net::HTTP.get(uri)
+      repo_url = Oj.load(response)['source_code_uri']
+      # Fallback to GitHub search if repo_url is nil
+      repo_url ||= get_github_repo_from_search(package_name)
+    end
+    if repo_url
+      log_success("Found GitHub repo for gem #{package_name}: #{repo_url}")
+    else
+      log_error("GitHub repo not found for gem: #{package_name}")
+    end
+  end
+  repo_url
+end
+
+def scan_and_lookup
+  repos = {}
+
+  if File.exist?('Gemfile')
+    log_success("Gemfile found. Processing...")
+    File.readlines('Gemfile').each do |line|
+      if line =~ /^gem\s+'([^']+)'/ # basic regex to extract gem name
+        gem_name = $1
+        github_info = nil
+        if line =~ /github:\s*'([^\/]+)\/([^']+)'/ # capture GitHub user and repo
+          github_info = { user: $1, repo: $2 }
+        end
+        repos[gem_name] = {
+          url: get_github_repo(gem_name, 'gem', github_info),
+          enabled: true
+        }
+      end
+    end
+  elsif File.exist?('package.json')
+    log_success("package.json found. Processing...")
+    packages = Oj.load(File.read('package.json'))['dependencies']
+    packages.each do |package_name, _version|
+      repos[package_name] = {
+        url: get_github_repo(package_name, 'npm'),
+        enabled: true
+      }
+    end
+  else
+    log_error("Neither Gemfile nor package.json found in the current directory.")
+    return
+  end
+
+  log_success("Caching the repos to repos_cache.json")
+  File.write('repos_cache.json', Oj.dump(repos))
+end
+
+scan_and_lookup
