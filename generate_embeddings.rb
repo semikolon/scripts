@@ -4,6 +4,11 @@ require 'oj'
 require 'colorize'
 require 'awesome_print'
 
+if ENV['OPENAI_API_KEY'].to_s.strip.empty?
+  puts "Error: OPENAI_API_KEY environment variable is missing or empty."
+  exit(1)
+end
+
 # Constants
 OPENAI_API_ENDPOINT = "https://api.openai.com/v1/embeddings"
 OPENAI_API_KEY = ENV['OPENAI_API_KEY']
