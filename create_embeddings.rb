@@ -81,6 +81,7 @@ end
 
 # Collect files from the enabled packages' local paths
 files_to_process = []
+file_sizes = {}
 
 # Iterate over each enabled package and collect its files
 enabled_packages.each do |package_name, details|
@@ -88,23 +89,26 @@ enabled_packages.each do |package_name, details|
   Dir["#{details[:path]}/**/*"].each do |file|
     next unless File.file?(file) && ['.rb', '.js', '.ts', '.jsx', '.tsx', '.md', '.html', '.css', '.scss'].include?(File.extname(file))
     files_to_process << file
+    file_sizes[package_name] = file_sizes[package_name].to_i + File.stat(file).size
   end
 end
 
-# Chunk the code
 code_chunks = chunk_code(files_to_process)
 
 tiktoken_encoder = Tiktoken.encoding_for_model("gpt-4")
 
-# Pre-calculate the encoding sizes for optimization and readability
 encoded_sizes = code_chunks.map { |chunk| tiktoken_encoder.encode(chunk).size }
 
 # Display some statistics and a sample chunk
 log_success("Processed #{files_to_process.length} files from #{enabled_packages.length} packages.")
 log_success("Total token count: #{encoded_sizes.sum}")
+
 average_token_count = encoded_sizes.empty? ? 0 : encoded_sizes.sum / encoded_sizes.length
 log_success("Average token count per chunk: #{average_token_count}")
-log_success("Packages with the most content: #{encoded_sizes.group_by { |size| size }.sort_by { |_, count| -count }.first(3).map { |size, _| size }}")
+
+top_three_packages = file_sizes.sort_by { |_, size| -size }.first(3).map { |package, _| package }
+log_success("Packages with the most content: #{top_three_packages}")
+
 log_success("Created #{code_chunks.length} code chunks.")
 
 if code_chunks.any?
