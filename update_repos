@@ -27,6 +27,8 @@ end
 def prompt_for_inclusion(package_name, modify_mode, package_statuses)
   previous_status = package_statuses[package_name] || {}
   previous_choice = previous_status[:enabled] ? 'y' : 'n'
+  
+  # If the package has a previous status and we're not in modify mode, or if the previous status is explicitly set (not nil), return the previous status.
   return previous_status[:enabled] if previous_status && (!modify_mode || previous_status[:enabled] != nil)
 
   print "Include #{package_name} in embeddings? [#{previous_choice}]: "
@@ -41,7 +43,7 @@ PACKAGE_STATUS_FILE = 'packages_status.json'
 
 # Load or initialize the package statuses
 if File.exist?(PACKAGE_STATUS_FILE)
-  package_statuses = Oj.load(File.read(PACKAGE_STATUS_FILE), symbol_keys: false)
+  package_statuses = Oj.load(File.read(PACKAGE_STATUS_FILE), symbol_keys: true)
 else
   package_statuses = {}
 end

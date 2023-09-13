@@ -13,7 +13,7 @@ end
 PACKAGE_STATUS_FILE = 'packages_status.json'
 
 if File.exist?(PACKAGE_STATUS_FILE)
-  package_statuses = Oj.load(File.read(PACKAGE_STATUS_FILE), symbol_keys: false)
+  package_statuses = Oj.load(File.read(PACKAGE_STATUS_FILE), symbol_keys: true)
 else
   log_error("Packages status file not found. Please run update_repos.rb first.")
   exit
@@ -28,15 +28,17 @@ file_count = 0
 
 # Iterate over each enabled package and process its files
 enabled_packages.each do |package_name, details|
-  log_info("Processing package: #{package_name}")
+  log_success("Processing package: #{package_name}")
   Dir["#{details[:path]}/**/*"].each do |file|
+    puts "Identified file: #{file}" # Print the identified file
     next unless File.file?(file) && ['.rb', '.js', '.ts', '.jsx', '.tsx'].include?(File.extname(file))
-    log_info("Processing file: #{file}")
+    log_success("Processing file: #{file}")
     file_content = File.read(file)
     code_chunks.concat(chunk_code(file_content))
     file_count += 1
   end
 end
+
 
 # Display some statistics and a sample chunk
 log_success("Processed #{file_count} files.")
