@@ -22,7 +22,7 @@ def generate_embeddings(chunk)
   if response.code == "200"
     puts "Embedding generated successfully for chunk.".colorize(:green)
     JSON.parse(response.body)["data"].first["embedding"]
-else
+  else
     puts "Failed to generate embedding for chunk. Error: #{response.body}".colorize(:red)
     nil
   end
@@ -46,9 +46,6 @@ chunks = Oj.load(File.read('code_chunks.json'), symbol_keys: true)
 first_chunk = chunks.first
 
 embedding = generate_embeddings(first_chunk)
-
-# Debug print the embedding using awesome_print
-ap embedding
 
 # Save the embedding for the next step (if successful)
 File.write('embedding.json', Oj.dump(embedding, mode: :compat)) if embedding
