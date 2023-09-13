@@ -28,7 +28,6 @@ end
 
 def chunk_code(files)
   enc = Tiktoken.encoding_for_model("gpt-4")
-
   chunks = []
   current_chunk = ""
   current_token_count = 0
@@ -43,7 +42,30 @@ def chunk_code(files)
 
     file_token_count = enc.encode(file_content).size
 
-    if current_token_count + file_token_count <= TOKEN_LIMIT
+    # If the file's token count exceeds the token limit, split the file into multiple chunks
+    if file_token_count > TOKEN_LIMIT
+      file_content_lines = file_content.split("\n")
+      temp_chunk = ""
+      temp_token_count = 0
+
+      file_content_lines.each do |line|
+        line_token_count = enc.encode(line).size
+
+        # If adding the line doesn't exceed the token limit, add it to the temp_chunk
+        if temp_token_count + line_token_count <= TOKEN_LIMIT
+          temp_chunk += line + "\n"
+          temp_token_count += line_token_count
+        else
+          # If it exceeds, save the current temp_chunk and start a new one
+          chunks << temp_chunk
+          temp_chunk = line + "\n"
+          temp_token_count = line_token_count
+        end
+      end
+
+      # Add any remaining content of the temp_chunk
+      chunks << temp_chunk unless temp_chunk.empty?
+    elsif current_token_count + file_token_count <= TOKEN_LIMIT
       current_chunk += file_content
       current_token_count += file_token_count
     else
@@ -83,6 +105,3 @@ end
 
 # Save the chunks to a JSON file
 File.write('code_chunks.json', Oj.dump(code_chunks, mode: :compat))
-
-# TODO: Send the chunked code to the OpenAI embeddings API
-# TODO: Obtain vector representations and upload to Pinecone

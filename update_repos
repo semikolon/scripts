@@ -105,3 +105,5 @@ File.write(PACKAGE_STATUS_FILE, Oj.dump(package_statuses, mode: :compat))
 
 require_relative 'create_embeddings'
 require_relative 'generate_embeddings'
+
+# TODO: Obtain vector representations and upload to Pinecone
