@@ -1,6 +1,10 @@
 require 'oj'
 require 'colorize'
 
+# Constants
+TOKEN_LIMIT = 8191
+CHUNKS_FILE = 'code_chunks.json'
+
 def log_success(message)
   puts message.green
 end
@@ -22,36 +26,46 @@ end
 # Filter out the enabled packages
 enabled_packages = package_statuses.select { |_package, details| details[:enabled] }
 
-def chunk_code(content)
-  # Define a maximum chunk size. This can be adjusted based on requirements.
-  max_chunk_size = 5000
-  
-  # Split the content into chunks of the defined size.
-  chunks = content.scan(/.{1,#{max_chunk_size}}/m)
-  
+def chunk_code(files)
+  chunks = []
+  current_chunk = ""
+  current_tokens = 0
+
+  files.each do |file|
+    file_content = File.read(file)
+    file_tokens = file_content.split.size  # Simple tokenization based on whitespace
+
+    if current_tokens + file_tokens <= TOKEN_LIMIT
+      current_chunk << file_content
+      current_tokens += file_tokens
+    else
+      chunks << current_chunk
+      current_chunk = file_content
+      current_tokens = file_tokens
+    end
+  end
+  chunks << current_chunk unless current_chunk.empty?
+
   return chunks
 end
 
-# Chunk the code from the enabled packages' local paths
-code_chunks = []
-file_count = 0
+# Collect the code from the enabled packages' local paths
+all_files = []
 
-# Iterate over each enabled package and process its files
+# Iterate over each enabled package and collect its files
 enabled_packages.each do |package_name, details|
-  log_success("Processing package: #{package_name}")
+  log_success("Collecting files from package: #{package_name}")
   Dir["#{details[:path]}/**/*"].each do |file|
-    puts "Identified file: #{file}" # Print the identified file
     next unless File.file?(file) && ['.rb', '.js', '.ts', '.jsx', '.tsx'].include?(File.extname(file))
-    log_success("Processing file: #{file}")
-    file_content = File.read(file)
-    code_chunks.concat(chunk_code(file_content))
-    file_count += 1
+    all_files << file
   end
 end
 
+# Chunk the collected files
+code_chunks = chunk_code(all_files)
 
 # Display some statistics and a sample chunk
-log_success("Processed #{file_count} files.")
+log_success("Processed #{all_files.length} files.")
 log_success("Created #{code_chunks.length} code chunks.")
 if code_chunks.any?
   log_success("Sample chunk:\n#{code_chunks.sample[0..100]}...") # Displaying the first 100 characters of a random chunk
