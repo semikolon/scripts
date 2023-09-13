@@ -37,8 +37,14 @@ end
 
 modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
 
-status_file = 'packages_status.json'
-package_statuses = File.exist?(status_file) ? Oj.load(File.read(status_file)) : {}
+PACKAGE_STATUS_FILE = 'packages_status.json'
+
+# Load or initialize the package statuses
+if File.exist?(PACKAGE_STATUS_FILE)
+  package_statuses = Oj.load(File.read(PACKAGE_STATUS_FILE), symbol_keys: false)
+else
+  package_statuses = {}
+end
 
 # Validate the structure of the package_statuses
 package_statuses.each do |package, details|
@@ -84,6 +90,6 @@ else
   log_error("Neither Gemfile nor package.json found in the current directory.")
 end
 
-File.write(status_file, Oj.dump(package_statuses))
+File.write(PACKAGE_STATUS_FILE, Oj.dump(package_statuses, mode: :compat))
 
 require_relative 'create_embeddings'
