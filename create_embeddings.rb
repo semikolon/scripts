@@ -1,18 +1,17 @@
 require 'oj'
 require 'colorize'
-require 'openai'
+require 'tiktoken_ruby'
 
 # Constants
 TOKEN_LIMIT = 8191
 CHUNKS_FILE = 'code_chunks.json'
-
-# Load package statuses
 PACKAGE_STATUS_FILE = 'packages_status.json'
 
+# Load package statuses
 if File.exist?(PACKAGE_STATUS_FILE)
   package_statuses = Oj.load(File.read(PACKAGE_STATUS_FILE), symbol_keys: true)
 else
-  log_error("Packages status file not found. Please run update_repos.rb first.")
+  puts "Packages status file not found. Please run update_repos.rb first.".red
   exit
 end
 
@@ -28,13 +27,21 @@ def log_error(message)
 end
 
 def chunk_code(files)
+  enc = Tiktoken.encoding_for_model("gpt-4")
+
   chunks = []
   current_chunk = ""
   current_token_count = 0
 
   files.each do |file|
-    file_content = File.read(file)
-    file_token_count = OpenAI::Tokenizer.tokenize(file_content).size
+    file_content = File.read(file, encoding: 'UTF-8')
+    
+    # If the content is not valid UTF-8, try to fix it
+    unless file_content.valid_encoding?
+      file_content = file_content.encode('UTF-8', 'binary', invalid: :replace, undef: :replace, replace: '')
+    end
+
+    file_token_count = enc.encode(file_content).size
 
     if current_token_count + file_token_count <= TOKEN_LIMIT
       current_chunk += file_content
@@ -57,7 +64,7 @@ files_to_process = []
 enabled_packages.each do |package_name, details|
   log_success("Collecting files from package: #{package_name}")
   Dir["#{details[:path]}/**/*"].each do |file|
-    next unless File.file?(file) && ['.rb', '.js', '.ts', '.jsx', '.tsx'].include?(File.extname(file))
+    next unless File.file?(file) && ['.rb', '.js', '.ts', '.jsx', '.tsx', '.md', '.html', '.css', '.scss'].include?(File.extname(file))
     files_to_process << file
   end
 end
@@ -73,6 +80,9 @@ if code_chunks.any?
 else
   log_error("No code chunks were created.")
 end
+
+# Save the chunks to a JSON file
+File.write('code_chunks.json', Oj.dump(code_chunks, mode: :compat))
 
 # TODO: Send the chunked code to the OpenAI embeddings API
 # TODO: Obtain vector representations and upload to Pinecone

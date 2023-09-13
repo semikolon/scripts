@@ -104,3 +104,4 @@ end
 File.write(PACKAGE_STATUS_FILE, Oj.dump(package_statuses, mode: :compat))
 
 require_relative 'create_embeddings'
+require_relative 'generate_embeddings'
