@@ -18,19 +18,8 @@ HEADERS = {
   "Content-Type" => "application/json"
 }
 
-# Load or initialize the cache
-def load_cache
-  if File.exist?('cache.json')
-    Oj.load_file('cache.json', symbol_keys: true)
-  else
-    {}
-  end
-end
-
-# Calculate file hash
-def calculate_file_hash(file_path)
-  Digest::SHA256.file(file_path).hexdigest
-end
+CACHE_FILE = 'cache.json'
+CONFIG_HASH = Digest::SHA256.hexdigest(OPENAI_API_ENDPOINT + OPENAI_API_KEY)
 
 def generate_embeddings(chunk)
   payload = {
@@ -41,7 +30,7 @@ def generate_embeddings(chunk)
   response = post_to_openai(payload)
   if response.code == "200"
     puts "Embedding generated successfully for chunk.".colorize(:green)
-    JSON.parse(response.body)["data"].first["embedding"]
+    JSON.parse(response.body)["data"].map { |data| data["embedding"] }
   else
     puts "Failed to generate embedding for chunk. Error: #{response.body}".colorize(:red)
     nil
@@ -59,26 +48,40 @@ def post_to_openai(payload)
   http.request(request)
 end
 
+def load_cache
+  return {} unless File.exist?(CACHE_FILE)
+  Oj.load(File.read(CACHE_FILE), symbol_keys: true)
+end
+
+def save_cache(cache)
+  File.write(CACHE_FILE, Oj.dump(cache, mode: :compat))
+end
+
 # Load the chunks from the previous script
 chunks = Oj.load(File.read('code_chunks.json'), symbol_keys: true)
+
+# Load cache
 cache = load_cache
 
-chunks.each do |file_path, chunk|
-  current_hash = calculate_file_hash(file_path)
+# Check for configuration changes
+if cache[:config_hash] != CONFIG_HASH
+  cache = { config_hash: CONFIG_HASH, file_hashes: {} }
+end
 
-  # If the file is in the cache and the hash matches, skip processing
-  if cache[file_path] && cache[file_path] == current_hash
-    puts "Cache hit for #{file_path}. Skipping..."
-    next
-  else
-    # Process the chunk and send for embeddings
-    embedding = generate_embeddings(chunk)
+embeddings = []
 
-    # Save the embedding for the next step (if successful)
-    File.write('embedding.json', Oj.dump(embedding, mode: :compat)) if embedding
+chunks.each do |chunk|
+  file_path = chunk[:file_path]
+  file_content = File.read(file_path)
+  file_hash = Digest::SHA256.hexdigest(file_content)
 
-    # Update the cache with the new hash
-    cache[file_path] = current_hash
+  # Check if file has changed or is new
+  if cache[:file_hashes][file_path] != file_hash
+    embedding = generate_embeddings(chunk[:content])
+    embeddings.concat(embedding) if embedding
+
+    # Update cache
+    cache[:file_hashes][file_path] = file_hash
   end
 end
 
@@ -90,5 +93,8 @@ cache.keys.each do |cached_file_path|
   end
 end
 
-# Save the updated cache to cache.json
-Oj.to_file('cache.json', cache, mode: :compat)
+# Save updated cache
+save_cache(cache)
+
+# Save the embeddings for the next step
+File.write('embeddings.json', Oj.dump(embeddings, mode: :compat)) if embeddings.any?
