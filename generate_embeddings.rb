@@ -1,12 +1,10 @@
 require 'net/http'
-require 'json'
 require 'oj'
 require 'colorize'
-require 'awesome_print'
 require 'digest'
 
 if ENV['OPENAI_API_KEY'].to_s.strip.empty?
-  puts "Error: OPENAI_API_KEY environment variable is missing or empty."
+  puts "Error: OPENAI_API_KEY environment variable is missing or empty.".colorize(:red)
   exit(1)
 end
 
@@ -18,7 +16,7 @@ HEADERS = {
   "Content-Type" => "application/json"
 }
 
-CACHE_FILE = 'cache.json'
+CACHE_FILE = 'embeddings_cache.json'
 CONFIG_HASH = Digest::SHA256.hexdigest(OPENAI_API_ENDPOINT + OPENAI_API_KEY)
 
 def generate_embeddings(chunk)
@@ -30,7 +28,7 @@ def generate_embeddings(chunk)
   response = post_to_openai(payload)
   if response.code == "200"
     puts "Embedding generated successfully for chunk.".colorize(:green)
-    JSON.parse(response.body)["data"].map { |data| data["embedding"] }
+    Oj.load(response.body, symbol_keys: true)[:data].map { |data| data[:embedding] }
   else
     puts "Failed to generate embedding for chunk. Error: #{response.body}".colorize(:red)
     nil
@@ -43,22 +41,22 @@ def post_to_openai(payload)
   http.use_ssl = true
 
   request = Net::HTTP::Post.new(uri.path, HEADERS)
-  request.body = payload.to_json
+  request.body = Oj.dump(payload, mode: :compat)
 
   http.request(request)
 end
 
 def load_cache
   return {} unless File.exist?(CACHE_FILE)
-  Oj.load(File.read(CACHE_FILE), symbol_keys: true)
+  Oj.load_file(CACHE_FILE, symbol_keys: true)
 end
 
 def save_cache(cache)
-  File.write(CACHE_FILE, Oj.dump(cache, mode: :compat))
+  Oj.dump_file(CACHE_FILE, cache, mode: :compat)
 end
 
 # Load the chunks from the previous script
-chunks = Oj.load(File.read('code_chunks.json'), symbol_keys: true)
+chunks = Oj.load_file('code_chunks.json', symbol_keys: true)
 
 # Load cache
 cache = load_cache
@@ -72,24 +70,28 @@ embeddings = []
 
 chunks.each do |chunk|
   file_path = chunk[:file_path]
-  file_content = File.read(file_path)
-  file_hash = Digest::SHA256.hexdigest(file_content)
+  begin
+    file_content = File.read(file_path)
+    file_hash = Digest::SHA256.hexdigest(file_content)
 
-  # Check if file has changed or is new
-  if cache[:file_hashes][file_path] != file_hash
-    embedding = generate_embeddings(chunk[:content])
-    embeddings.concat(embedding) if embedding
+    # Check if file has changed or is new
+    if cache[:file_hashes][file_path] != file_hash
+      embedding = generate_embeddings(chunk[:content])
+      embeddings.concat(embedding) if embedding
 
-    # Update cache
-    cache[:file_hashes][file_path] = file_hash
+      # Update cache
+      cache[:file_hashes][file_path] = file_hash
+    end
+  rescue => e
+    puts "Error reading file #{file_path}. Error: #{e.message}".colorize(:red)
   end
 end
 
 # Remove entries for deleted files from the cache
-cache.keys.each do |cached_file_path|
-  unless chunks.keys.include?(cached_file_path)
-    cache.delete(cached_file_path)
-    puts "Removed #{cached_file_path} from cache."
+cache[:file_hashes].keys.each do |cached_file_path|
+  unless chunks.map { |c| c[:file_path] }.include?(cached_file_path)
+    cache[:file_hashes].delete(cached_file_path)
+    puts "Removed #{cached_file_path} from cache.".colorize(:yellow)
   end
 end
 
@@ -97,4 +99,4 @@ end
 save_cache(cache)
 
 # Save the embeddings for the next step
-File.write('embeddings.json', Oj.dump(embeddings, mode: :compat)) if embeddings.any?
+Oj.dump_file('embeddings.json', embeddings, mode: :compat) if embeddings.any?
