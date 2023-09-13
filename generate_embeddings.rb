@@ -21,8 +21,8 @@ def generate_embeddings(chunk)
   response = post_to_openai(payload)
   if response.code == "200"
     puts "Embedding generated successfully for chunk.".colorize(:green)
-    JSON.parse(response.body)["embedding"]
-  else
+    JSON.parse(response.body)["data"].first["embedding"]
+else
     puts "Failed to generate embedding for chunk. Error: #{response.body}".colorize(:red)
     nil
   end
