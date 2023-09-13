@@ -27,10 +27,12 @@ end
 def prompt_for_inclusion(package_name, modify_mode, package_statuses)
   package_statuses[package_name] ||= {} # Ensure the package has an initialized hash
   previous_status = package_statuses[package_name]
+  puts "Debug: Package: #{package_name}, Previous Status: #{previous_status.inspect}" # Debug print
+
   previous_choice = previous_status[:enabled].nil? ? 'n' : (previous_status[:enabled] ? 'y' : 'n')
 
   # If modify_mode is false and the package status is already set, return the existing status
-  return previous_status[:enabled] if !modify_mode && !previous_status[:enabled].nil?
+  return previous_status[:enabled] if previous_status.key?(:enabled) && (!modify_mode || previous_status[:enabled] != nil)
 
   print "Include #{package_name} in embeddings? [#{previous_choice}]: "
   decision = STDIN.gets.chomp.downcase
