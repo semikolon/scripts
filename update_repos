@@ -25,8 +25,9 @@ def get_local_npm_path(package_name, project_dir)
 end
 
 def prompt_for_inclusion(package_name, modify_mode, package_statuses)
-  previous_choice = package_statuses[package_name][:enabled] ? 'y' : 'n'
-  return package_statuses[package_name][:enabled] unless modify_mode || !package_statuses.key?(package_name)
+  previous_status = package_statuses[package_name] || {}
+  previous_choice = previous_status[:enabled] ? 'y' : 'n'
+  return previous_status[:enabled] if previous_status && (!modify_mode || previous_status[:enabled] != nil)
 
   print "Include #{package_name} in embeddings? [#{previous_choice}]: "
   decision = STDIN.gets.chomp.downcase
