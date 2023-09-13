@@ -25,16 +25,17 @@ def get_local_npm_path(package_name, project_dir)
 end
 
 def prompt_for_inclusion(package_name, modify_mode, package_statuses)
-  previous_status = package_statuses[package_name] || {}
-  previous_choice = previous_status[:enabled] ? 'y' : 'n'
-  
-  # If the package has a previous status and we're not in modify mode, or if the previous status is explicitly set (not nil), return the previous status.
-  return previous_status[:enabled] if previous_status && (!modify_mode || previous_status[:enabled] != nil)
+  package_statuses[package_name] ||= {} # Ensure the package has an initialized hash
+  previous_status = package_statuses[package_name]
+  previous_choice = previous_status[:enabled].nil? ? 'n' : (previous_status[:enabled] ? 'y' : 'n')
+
+  # If modify_mode is false and the package status is already set, return the existing status
+  return previous_status[:enabled] if !modify_mode && !previous_status[:enabled].nil?
 
   print "Include #{package_name} in embeddings? [#{previous_choice}]: "
   decision = STDIN.gets.chomp.downcase
   decision = previous_choice if decision.empty?
-  decision == 'y'
+  package_statuses[package_name][:enabled] = (decision == 'y')
 end
 
 modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
