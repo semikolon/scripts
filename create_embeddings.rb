@@ -26,56 +26,64 @@ def log_error(message)
   puts message.red
 end
 
+# Read the file content and ensure it is UTF-8 encoded
+def read_file_content(file)
+  file_content = File.read(file, encoding: 'UTF-8')
+  unless file_content.valid_encoding?
+      file_content = file_content.encode('UTF-8', 'binary', invalid: :replace, undef: :replace, replace: '')
+  end
+  file_content
+end
+
+# Split the file content into chunks of 8191 tokens or less
+def split_file_content_to_chunks(file, file_content, enc)
+  chunks = []
+  temp_chunk_content = ""
+  temp_token_count = 0
+
+  file_content_lines = file_content.split("\n")
+  file_content_lines.each do |line|
+      line_token_count = enc.encode(line).size
+      if temp_token_count + line_token_count <= TOKEN_LIMIT
+          temp_chunk_content += line + "\n"
+          temp_token_count += line_token_count
+      else
+          chunks << { file_path: file, content: temp_chunk_content }
+          temp_chunk_content = line + "\n"
+          temp_token_count = line_token_count
+      end
+  end
+
+  chunks << { file_path: file, content: temp_chunk_content } unless temp_chunk_content.empty?
+  chunks
+end
+
+# Split the files into chunks - merging smaller ones together, splitting larger ones
 def chunk_code(files)
   enc = Tiktoken.encoding_for_model("gpt-4")
   chunks = []
-  current_chunk = ""
+  current_chunk_content = ""
   current_token_count = 0
+  last_file = nil
 
   files.each do |file|
-    file_content = File.read(file, encoding: 'UTF-8')
-    
-    # If the content is not valid UTF-8, try to fix it
-    unless file_content.valid_encoding?
-      file_content = file_content.encode('UTF-8', 'binary', invalid: :replace, undef: :replace, replace: '')
-    end
+      last_file = file
+      file_content = read_file_content(file)
+      file_token_count = enc.encode(file_content).size
 
-    file_token_count = enc.encode(file_content).size
-
-    # If the file's token count exceeds the token limit, split the file into multiple chunks
-    if file_token_count > TOKEN_LIMIT
-      file_content_lines = file_content.split("\n")
-      temp_chunk = ""
-      temp_token_count = 0
-
-      file_content_lines.each do |line|
-        line_token_count = enc.encode(line).size
-
-        # If adding the line doesn't exceed the token limit, add it to the temp_chunk
-        if temp_token_count + line_token_count <= TOKEN_LIMIT
-          temp_chunk += line + "\n"
-          temp_token_count += line_token_count
-        else
-          # If it exceeds, save the current temp_chunk and start a new one
-          chunks << temp_chunk
-          temp_chunk = line + "\n"
-          temp_token_count = line_token_count
-        end
+      if file_token_count > TOKEN_LIMIT
+          chunks.concat(split_file_content_to_chunks(file, file_content, enc))
+      elsif current_token_count + file_token_count <= TOKEN_LIMIT
+          current_chunk_content += file_content
+          current_token_count += file_token_count
+      else
+          chunks << { file_path: file, content: current_chunk_content }
+          current_chunk_content = file_content
+          current_token_count = file_token_count
       end
-
-      # Add any remaining content of the temp_chunk
-      chunks << temp_chunk unless temp_chunk.empty?
-    elsif current_token_count + file_token_count <= TOKEN_LIMIT
-      current_chunk += file_content
-      current_token_count += file_token_count
-    else
-      chunks << current_chunk
-      current_chunk = file_content
-      current_token_count = file_token_count
-    end
   end
 
-  chunks << current_chunk unless current_chunk.empty?
+  chunks << { file_path: last_file, content: current_chunk_content } unless current_chunk_content.empty?
   chunks
 end
 
@@ -97,7 +105,7 @@ code_chunks = chunk_code(files_to_process)
 
 tiktoken_encoder = Tiktoken.encoding_for_model("gpt-4")
 
-encoded_sizes = code_chunks.map { |chunk| tiktoken_encoder.encode(chunk).size }
+encoded_sizes = code_chunks.map { |chunk| tiktoken_encoder.encode(chunk[:content]).size }
 
 # Display some statistics and a sample chunk
 log_success("Processed #{files_to_process.length} files from #{enabled_packages.length} packages.")
@@ -113,7 +121,7 @@ log_success("Created #{code_chunks.length} code chunks.")
 
 if code_chunks.any?
   # Displaying the first 100 characters of a random chunk
-  log_success("Sample chunk:\n#{code_chunks.sample[0..100]}...")
+  log_success("Sample chunk:\n#{code_chunks.sample[:content][0..100]}...")
 else
   log_error("No code chunks were created.")
 end
