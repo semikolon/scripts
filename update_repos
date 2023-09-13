@@ -24,36 +24,36 @@ def get_local_npm_path(package_name, project_dir)
   nil
 end
 
-# Check if the script is run with the modify flag
-modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
+def prompt_for_inclusion(package_name, modify_mode, package_statuses)
+  previous_choice = package_statuses[package_name] ? 'y' : 'n'
+  return package_statuses[package_name] unless modify_mode || !package_statuses.key?(package_name)
 
-# Load previous decisions if the file exists
-status_file = 'packages_status.json'
-if File.exist?(status_file)
-  package_statuses = Oj.load(File.read(status_file))
-else
-  package_statuses = {}
+  print "Include #{package_name} in embeddings? [#{previous_choice}]: "
+  decision = STDIN.gets.chomp.downcase
+  decision = previous_choice if decision.empty?
+  decision == 'y'
 end
 
-# Main script starts here
+modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
+
+status_file = 'packages_status.json'
+package_statuses = File.exist?(status_file) ? Oj.load(File.read(status_file)) : {}
 
 if File.exist?('Gemfile')
   log_success("Gemfile found. Processing...")
   
-  # Ensure all gems are installed
   unless system('bundle check')
     log_error("Some gems are missing. Please run 'bundle install' and try again.")
     exit
   end
   
-  # Use Bundler to get the specs of the gems
   Bundler.load.specs.each do |spec|
     local_path = spec.full_gem_path
     gem_name = spec.name
 
     if local_path && File.directory?(local_path)
       log_success("Found local path for gem #{gem_name}: #{local_path}")
-      # Process the code from local_path...
+      package_statuses[gem_name] = prompt_for_inclusion(gem_name, modify_mode, package_statuses)
     else
       log_error("Local path not found for gem: #{gem_name}")
     end
@@ -66,23 +66,16 @@ elsif File.exist?('package.json')
     local_path = get_local_npm_path(package_name, project_dir)
     if local_path
       log_success("Found local path for npm package #{package_name}: #{local_path}")
-      # Process the code from local_path...
+
+      package_statuses[package_name] = prompt_for_inclusion(package_name, modify_mode, package_statuses)
     else
       log_error("Local path not found for npm package: #{package_name}. Ensure the package is installed using 'npm install #{package_name}' or 'yarn add #{package_name}' if you're using Yarn.")
-    end
-
-    # If in modify mode or the package is new, prompt the user
-    previous_choice = package_statuses[package_name] ? 'y' : 'n'
-    if modify_mode || !package_statuses.key?(package_name)
-      print "Include #{package_name} in embeddings? [#{previous_choice}]: "
-      decision = STDIN.gets.chomp.downcase
-      decision = previous_choice if decision.empty?
-      package_statuses[package_name] = (decision == 'y')
     end
   end
 else
   log_error("Neither Gemfile nor package.json found in the current directory.")
 end
 
-# Save the updated decisions to the file
 File.write(status_file, Oj.dump(package_statuses))
+
+require_relative 'create_embeddings'
