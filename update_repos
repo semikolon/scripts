@@ -25,8 +25,8 @@ def get_local_npm_path(package_name, project_dir)
 end
 
 def prompt_for_inclusion(package_name, modify_mode, package_statuses)
-  previous_choice = package_statuses[package_name] ? 'y' : 'n'
-  return package_statuses[package_name] unless modify_mode || !package_statuses.key?(package_name)
+  previous_choice = package_statuses[package_name][:enabled] ? 'y' : 'n'
+  return package_statuses[package_name][:enabled] unless modify_mode || !package_statuses.key?(package_name)
 
   print "Include #{package_name} in embeddings? [#{previous_choice}]: "
   decision = STDIN.gets.chomp.downcase
@@ -38,6 +38,14 @@ modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
 
 status_file = 'packages_status.json'
 package_statuses = File.exist?(status_file) ? Oj.load(File.read(status_file)) : {}
+
+# Validate the structure of the package_statuses
+package_statuses.each do |package, details|
+  unless details.is_a?(Hash) && details.key?(:path) && details.key?(:enabled)
+    package_statuses = {} # Reset if the structure is not as expected
+    break
+  end
+end
 
 if File.exist?('Gemfile')
   log_success("Gemfile found. Processing...")
@@ -53,7 +61,7 @@ if File.exist?('Gemfile')
 
     if local_path && File.directory?(local_path)
       log_success("Found local path for gem #{gem_name}: #{local_path}")
-      package_statuses[gem_name] = prompt_for_inclusion(gem_name, modify_mode, package_statuses)
+      package_statuses[gem_name] = { path: local_path, enabled: prompt_for_inclusion(gem_name, modify_mode, package_statuses) }
     else
       log_error("Local path not found for gem: #{gem_name}")
     end
@@ -66,8 +74,7 @@ elsif File.exist?('package.json')
     local_path = get_local_npm_path(package_name, project_dir)
     if local_path
       log_success("Found local path for npm package #{package_name}: #{local_path}")
-
-      package_statuses[package_name] = prompt_for_inclusion(package_name, modify_mode, package_statuses)
+      package_statuses[package_name] = { path: local_path, enabled: prompt_for_inclusion(package_name, modify_mode, package_statuses) }
     else
       log_error("Local path not found for npm package: #{package_name}. Ensure the package is installed using 'npm install #{package_name}' or 'yarn add #{package_name}' if you're using Yarn.")
     end
