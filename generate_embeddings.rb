@@ -3,6 +3,7 @@ require 'json'
 require 'oj'
 require 'colorize'
 require 'awesome_print'
+require 'digest'
 
 if ENV['OPENAI_API_KEY'].to_s.strip.empty?
   puts "Error: OPENAI_API_KEY environment variable is missing or empty."
@@ -16,6 +17,20 @@ HEADERS = {
   "Authorization" => "Bearer #{OPENAI_API_KEY}",
   "Content-Type" => "application/json"
 }
+
+# Load or initialize the cache
+def load_cache
+  if File.exist?('cache.json')
+    Oj.load_file('cache.json', symbol_keys: true)
+  else
+    {}
+  end
+end
+
+# Calculate file hash
+def calculate_file_hash(file_path)
+  Digest::SHA256.file(file_path).hexdigest
+end
 
 def generate_embeddings(chunk)
   payload = {
@@ -46,11 +61,34 @@ end
 
 # Load the chunks from the previous script
 chunks = Oj.load(File.read('code_chunks.json'), symbol_keys: true)
+cache = load_cache
 
-# Only use the first chunk for now
-first_chunk = chunks.first
+chunks.each do |file_path, chunk|
+  current_hash = calculate_file_hash(file_path)
 
-embedding = generate_embeddings(first_chunk)
+  # If the file is in the cache and the hash matches, skip processing
+  if cache[file_path] && cache[file_path] == current_hash
+    puts "Cache hit for #{file_path}. Skipping..."
+    next
+  else
+    # Process the chunk and send for embeddings
+    embedding = generate_embeddings(chunk)
 
-# Save the embedding for the next step (if successful)
-File.write('embedding.json', Oj.dump(embedding, mode: :compat)) if embedding
+    # Save the embedding for the next step (if successful)
+    File.write('embedding.json', Oj.dump(embedding, mode: :compat)) if embedding
+
+    # Update the cache with the new hash
+    cache[file_path] = current_hash
+  end
+end
+
+# Remove entries for deleted files from the cache
+cache.keys.each do |cached_file_path|
+  unless chunks.keys.include?(cached_file_path)
+    cache.delete(cached_file_path)
+    puts "Removed #{cached_file_path} from cache."
+  end
+end
+
+# Save the updated cache to cache.json
+Oj.to_file('cache.json', cache, mode: :compat)
