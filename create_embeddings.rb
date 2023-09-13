@@ -22,6 +22,16 @@ end
 # Filter out the enabled packages
 enabled_packages = package_statuses.select { |_package, details| details[:enabled] }
 
+def chunk_code(content)
+  # Define a maximum chunk size. This can be adjusted based on requirements.
+  max_chunk_size = 5000
+  
+  # Split the content into chunks of the defined size.
+  chunks = content.scan(/.{1,#{max_chunk_size}}/m)
+  
+  return chunks
+end
+
 # Chunk the code from the enabled packages' local paths
 code_chunks = []
 file_count = 0
