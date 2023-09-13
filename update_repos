@@ -31,6 +31,17 @@ def get_local_npm_path(package_name, project_dir)
   nil
 end
 
+# Check if the script is run with the modify flag
+modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
+
+# Load previous decisions if the file exists
+status_file = 'packages_status.json'
+if File.exist?(status_file)
+  package_statuses = Oj.load(File.read(status_file))
+else
+  package_statuses = {}
+end
+
 # Main script starts here
 
 if File.exist?('Gemfile')
@@ -59,7 +70,17 @@ elsif File.exist?('package.json')
     else
       log_error("Local path not found for npm package: #{package_name}. Ensure the package is installed using 'npm install #{package_name}' or 'yarn add #{package_name}' if you're using Yarn.")
     end
+
+    # If in modify mode or the package is new, prompt the user
+    if modify_mode || !package_statuses.key?(package_name)
+      print "Include #{package_name} in embeddings? [y/N]: "
+      decision = STDIN.gets.chomp.downcase
+      package_statuses[package_name] = (decision == 'y')
+    end
   end
 else
   log_error("Neither Gemfile nor package.json found in the current directory.")
 end
+
+# Save the updated decisions to the file
+File.write(status_file, Oj.dump(package_statuses))
