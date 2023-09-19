@@ -102,6 +102,7 @@ encoded_sizes = code_chunks.map { |chunk| tiktoken_encoder.encode(chunk[:content
 
 # Display some statistics and a sample chunk
 log_success("Processed #{files_to_process.length} files from #{enabled_packages.length} packages.")
+log_success("Generated #{code_chunks.length} chunks.")
 log_success("Total token count: #{encoded_sizes.sum}")
 
 average_token_count = encoded_sizes.empty? ? 0 : encoded_sizes.sum / encoded_sizes.length
