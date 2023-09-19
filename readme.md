@@ -79,7 +79,9 @@ Preserve line numbers in code chunks for future git patches. Store line numbers 
     - Write exhaustive tests, possibly in Rspec.
 
 **GitHub Repo**:
-Check the current code status on **https://github.com/semikolon/scripts**.
+    - Check the current code status on **https://github.com/semikolon/scripts**.
+    - Read todo.md for a list of the next steps.
+    - The Ruby script update_repos is the starting point. It doesn't have an .rb extension because it's meant to be executable (+x) and the directory should be added to the PATH in the terminal so that you can run update_repos from any project directory. That way, it will index the dependency packages of that project and upload/update embeddings of their code in Pinecone.
 
 ---
 
