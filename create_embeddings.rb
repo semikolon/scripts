@@ -3,7 +3,8 @@ require 'colorize'
 require 'tiktoken_ruby'
 
 # Constants
-TOKEN_LIMIT = 300
+TOKEN_LIMIT = 300  
+OVERLAP_SIZE = 30
 CHUNKS_FILE = 'code_chunks.json'
 PACKAGE_STATUS_FILE = 'packages_status.json'
 
@@ -35,66 +36,55 @@ def read_file_content(file)
   file_content
 end
 
-# Split the file content into chunks of 8191 tokens or less
-def split_file_content_to_chunks(file, file_content, enc)
+# Split each file's content into semantic chunks of 300 tokens or less
+def split_file_to_chunks(file, file_content)
   chunks = []
+  tok = Tiktoken.encoding_for_model("gpt-4")
   temp_chunk_content = ""
   temp_token_count = 0
 
   file_content_lines = file_content.split("\n")
   file_content_lines.each do |line|
-      line_token_count = enc.encode(line).size
-      if temp_token_count + line_token_count <= TOKEN_LIMIT
-          temp_chunk_content += line + "\n"
-          temp_token_count += line_token_count
-      else
-          chunks << { file_path: file, content: temp_chunk_content }
-          temp_chunk_content = line + "\n"
-          temp_token_count = line_token_count
-      end
+    line_token_count = tok.encode(line).size
+    
+    if temp_token_count + line_token_count <= TOKEN_LIMIT
+      temp_chunk_content += line + "\n"
+      temp_token_count += line_token_count
+    else
+      # Save last chunk
+      last_chunk_content = temp_chunk_content
+
+      # Take last OVERLAP_SIZE tokens 
+      overlap_content = last_chunk_content[-OVERLAP_SIZE..-1]
+
+      chunks << { file_path: file, content: last_chunk_content }
+      temp_chunk_content = overlap_content + line + "\n"  
+      temp_token_count = line_token_count   
+    end
   end
 
   chunks << { file_path: file, content: temp_chunk_content } unless temp_chunk_content.empty?
   chunks
 end
 
-# Split the files into chunks - merging smaller ones together, splitting larger ones
-def chunk_code(files)
-  enc = Tiktoken.encoding_for_model("gpt-4")
+# Generate chunks for each file
+def generate_chunks(files)
   chunks = []
-  current_chunk_content = ""
-  current_token_count = 0
-  last_file = nil
-  overlap_size = 30
 
   files.each do |file|
-    last_file = file
     file_content = read_file_content(file)
-    file_token_count = enc.encode(file_content).size
-
-    if file_token_count > TOKEN_LIMIT
-      chunks.concat(split_file_content_to_chunks(file, file_content, enc))
-    elsif current_token_count + file_token_count <= TOKEN_LIMIT + overlap_size
-      current_chunk_content += file_content
-      current_token_count += file_token_count
-    else
-      chunks << { file_path: file, content: current_chunk_content }
-      current_chunk_content = file_content[-overlap_size..-1]
-      current_token_count = enc.encode(current_chunk_content).size
-    end
+    chunks.concat(split_file_to_chunks(file, file_content))
   end
 
-  chunks << { file_path: last_file, content: current_chunk_content } unless current_chunk_content.empty?
-  chunks
+  chunks 
 end
 
-# Collect files from the enabled packages' local paths
+# Collect all files from enabled packages
 files_to_process = []
 file_sizes = {}
 
 # Iterate over each enabled package and collect its files
 enabled_packages.each do |package_name, details|
-  #log_success("Collecting files from package: #{package_name}")
   Dir["#{details[:path]}/**/*"].each do |file|
     next unless File.file?(file) && ['.rb', '.js', '.ts', '.jsx', '.tsx', '.md', '.html', '.css', '.scss'].include?(File.extname(file))
     files_to_process << file
@@ -102,8 +92,10 @@ enabled_packages.each do |package_name, details|
   end
 end
 
-code_chunks = chunk_code(files_to_process)
+# Generate 300 token chunks
+code_chunks = generate_chunks(files_to_process)
 
+# Display statistics  
 tiktoken_encoder = Tiktoken.encoding_for_model("gpt-4")
 
 encoded_sizes = code_chunks.map { |chunk| tiktoken_encoder.encode(chunk[:content]).size }
@@ -117,8 +109,6 @@ log_success("Average token count per chunk: #{average_token_count}")
 
 top_three_packages = file_sizes.sort_by { |_, size| -size }.first(3).map { |package, _| package }
 log_success("Packages with the most content: #{top_three_packages}")
-
-log_success("Created #{code_chunks.length} code chunks.")
 
 if code_chunks.any?
   # Displaying the first 100 characters of a random chunk

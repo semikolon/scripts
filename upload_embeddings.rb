@@ -27,5 +27,7 @@ embeddings_file = "embeddings.json"
 embeddings_data = Oj.load_file(embeddings_file, symbol_keys: true)
 
 # Upload the embeddings to Pinecone
-upload_to_pinecone(embeddings_data, pinecone_client)
+puts "Would have uploaded embeddings data:"
+puts Oj.dump(embeddings_data, mode: :compat)
+# upload_to_pinecone(embeddings_data, pinecone_client)
 
