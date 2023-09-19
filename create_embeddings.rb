@@ -3,7 +3,7 @@ require 'colorize'
 require 'tiktoken_ruby'
 
 # Constants
-TOKEN_LIMIT = 8191
+TOKEN_LIMIT = 300
 CHUNKS_FILE = 'code_chunks.json'
 PACKAGE_STATUS_FILE = 'packages_status.json'
 
@@ -65,22 +65,23 @@ def chunk_code(files)
   current_chunk_content = ""
   current_token_count = 0
   last_file = nil
+  overlap_size = 30
 
   files.each do |file|
-      last_file = file
-      file_content = read_file_content(file)
-      file_token_count = enc.encode(file_content).size
+    last_file = file
+    file_content = read_file_content(file)
+    file_token_count = enc.encode(file_content).size
 
-      if file_token_count > TOKEN_LIMIT
-          chunks.concat(split_file_content_to_chunks(file, file_content, enc))
-      elsif current_token_count + file_token_count <= TOKEN_LIMIT
-          current_chunk_content += file_content
-          current_token_count += file_token_count
-      else
-          chunks << { file_path: file, content: current_chunk_content }
-          current_chunk_content = file_content
-          current_token_count = file_token_count
-      end
+    if file_token_count > TOKEN_LIMIT
+      chunks.concat(split_file_content_to_chunks(file, file_content, enc))
+    elsif current_token_count + file_token_count <= TOKEN_LIMIT + overlap_size
+      current_chunk_content += file_content
+      current_token_count += file_token_count
+    else
+      chunks << { file_path: file, content: current_chunk_content }
+      current_chunk_content = file_content[-overlap_size..-1]
+      current_token_count = enc.encode(current_chunk_content).size
+    end
   end
 
   chunks << { file_path: last_file, content: current_chunk_content } unless current_chunk_content.empty?

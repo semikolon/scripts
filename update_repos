@@ -99,6 +99,7 @@ elsif File.exist?('package.json')
   end
 else
   log_error("Neither Gemfile nor package.json found in the current directory.")
+  # Support for Python requirements.txt is forthcoming.
 end
 
 File.write(PACKAGE_STATUS_FILE, Oj.dump(package_statuses, mode: :compat))
