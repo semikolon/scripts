@@ -50,6 +50,41 @@ Ensure CodeGPT in VS Code has the Pinecone API key. Regularly update embeddings 
 **Metadata and Line Numbers**:
 Preserve line numbers in code chunks for future git patches. Store line numbers as metadata in Pinecone.
 
+**Embedding Metadata within Code Chunks**:
+
+1. **Format**: Use a JSON format for the metadata. It's structured, easily recognizable, and can be parsed by most programming languages.
+
+2. **Metadata Structure**:
+```json
+{
+    "filename": "main.rb",
+    "filepath": "/projects/my_project/",
+    "line_numbers": [10, 11, 12, ...],
+    "package_name": "sample_package" // or "project_name": "my_project" if it's from the current workspace
+}
+```
+
+3. **Integration**:
+- Serialize the JSON metadata to a string.
+- Prepend the serialized metadata to the code chunk, separating them with a newline.
+
+Example in Ruby:
+```ruby
+metadata = {
+    filename: "main.rb",
+    filepath: "/projects/my_project/",
+    line_numbers: [10, 11, 12, ...],
+    package_name: "sample_package" // or project_name: "my_project" if it's from the current workspace
+}.to_json
+
+chunk_with_metadata = "#{metadata}\n#{code_chunk}"
+```
+
+4. **Usage**:
+- When the LLM or any other system processes the chunk, it can easily extract and parse the metadata from the content.
+- The metadata provides context about the code chunk, including its origin, location in the source file, and associated package or project.
+
+
 **Advanced Features**:
 
 - **Auto-Debugging and CLI Interactions**: Inspired by GPT Pilot's auto-debugging feature, GalaxyBrain can self-correct, run CLI commands, and adjust based on feedback.

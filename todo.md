@@ -31,6 +31,7 @@
 - [ ]  Validate embeddings.
     - [ ]  Ensure embeddings capture distinct semantic information.
     - [ ]  Test retrieval-augmented generation with sample queries.
+    - Comment: We can only really get a sense of this once we've finished the whole array of scripts, uploaded embeddings, and are using them from CodeGPT in VS Code. That's when we'll stress test the RAG also. The RAG is built-in to CodeGPT.
 
 ### 4. Testing
 
