@@ -2,22 +2,10 @@ require 'oj'
 require 'colorize'
 require 'tiktoken_ruby'
 
-# Constants
-TOKEN_LIMIT = 300  
-OVERLAP_SIZE = 30
-CHUNKS_FILE = 'code_chunks.json'
 PACKAGE_STATUS_FILE = 'packages_status.json'
-
-# Load package statuses
-if File.exist?(PACKAGE_STATUS_FILE)
-  package_statuses = Oj.load(File.read(PACKAGE_STATUS_FILE), symbol_keys: true)
-else
-  puts "Packages status file not found. Please run update_repos.rb first.".red
-  exit
-end
-
-# Filter out the enabled packages
-enabled_packages = package_statuses.select { |_package, details| details[:enabled] }
+CHUNKS_FILE = 'code_chunks.json'
+CHUNK_SIZE = 300
+OVERLAP_SIZE = 30
 
 def log_success(message)
   puts message.green
@@ -36,48 +24,15 @@ def read_file_content(file)
   file_content
 end
 
-# Split each file's content into semantic chunks of 300 tokens or less
-def split_file_to_chunks(file, file_content)
-  chunks = []
-  tok = Tiktoken.encoding_for_model("gpt-4")
-  temp_chunk_content = ""
-  temp_token_count = 0
-
-  file_content_lines = file_content.split("\n")
-  file_content_lines.each do |line|
-    line_token_count = tok.encode(line).size
-    
-    if temp_token_count + line_token_count <= TOKEN_LIMIT
-      temp_chunk_content += line + "\n"
-      temp_token_count += line_token_count
-    else
-      # Save last chunk
-      last_chunk_content = temp_chunk_content
-
-      # Take last OVERLAP_SIZE tokens 
-      overlap_content = last_chunk_content[-OVERLAP_SIZE..-1]
-
-      chunks << { file_path: file, content: last_chunk_content }
-      temp_chunk_content = overlap_content + line + "\n"  
-      temp_token_count = line_token_count   
-    end
-  end
-
-  chunks << { file_path: file, content: temp_chunk_content } unless temp_chunk_content.empty?
-  chunks
+# Load package statuses
+unless File.exist?(PACKAGE_STATUS_FILE)
+  log_error("Packages status file not found. Please run update_repos.rb first.")
+  exit
 end
+package_statuses = Oj.load_file(PACKAGE_STATUS_FILE, symbol_keys: true)
 
-# Generate chunks for each file
-def generate_chunks(files)
-  chunks = []
-
-  files.each do |file|
-    file_content = read_file_content(file)
-    chunks.concat(split_file_to_chunks(file, file_content))
-  end
-
-  chunks 
-end
+# Filter out the enabled packages
+enabled_packages = package_statuses.select { |_package, details| details[:enabled] }
 
 # Collect all files from enabled packages
 files_to_process = []
@@ -92,17 +47,50 @@ enabled_packages.each do |package_name, details|
   end
 end
 
-# Generate 300 token chunks
-code_chunks = generate_chunks(files_to_process)
+def split_into_chunks(content)
+  return [] if content.nil?
+
+  chunks = []
+  tokens = content.split
+  start_index = 0
+
+  while start_index < tokens.size
+    end_index = [start_index + CHUNK_SIZE - 1, tokens.size - 1].min
+    puts "Start index: #{start_index}, End index: #{end_index}"
+    chunk = tokens[start_index..end_index].join(' ')
+    puts "Chunk created"
+    chunks << chunk
+    start_index = end_index - OVERLAP_SIZE + 1
+    start_index += 1 if end_index == tokens.size - 1
+  end
+
+  chunks
+end
+
+def generate_chunks_for_file(file_path)
+  content = read_file_content(file_path)
+  split_into_chunks(content).map do |chunk|
+    metadata = {
+      filename: File.basename(file_path),
+      filepath: File.dirname(file_path),
+      line_numbers: chunk.lines.map.with_index { |_, idx| idx + 1 }
+    }
+    {
+      content: metadata.to_json + "\n" + chunk,
+      metadata: metadata
+    }
+  end
+end
+
+all_chunks = files_to_process.flat_map { |file_path| generate_chunks_for_file(file_path) }
 
 # Display statistics  
 tiktoken_encoder = Tiktoken.encoding_for_model("gpt-4")
-
-encoded_sizes = code_chunks.map { |chunk| tiktoken_encoder.encode(chunk[:content]).size }
+encoded_sizes = all_chunks.map { |chunk| tiktoken_encoder.encode(chunk[:content]).size }
 
 # Display some statistics and a sample chunk
 log_success("Processed #{files_to_process.length} files from #{enabled_packages.length} packages.")
-log_success("Generated #{code_chunks.length} chunks.")
+log_success("Generated #{all_chunks.length} chunks.")
 log_success("Total token count: #{encoded_sizes.sum}")
 
 average_token_count = encoded_sizes.empty? ? 0 : encoded_sizes.sum / encoded_sizes.length
@@ -111,12 +99,12 @@ log_success("Average token count per chunk: #{average_token_count}")
 top_three_packages = file_sizes.sort_by { |_, size| -size }.first(3).map { |package, _| package }
 log_success("Packages with the most content: #{top_three_packages}")
 
-if code_chunks.any?
+if all_chunks.any?
   # Displaying the first 100 characters of a random chunk
-  log_success("Sample chunk:\n#{code_chunks.sample[:content][0..100]}...")
+  log_success("Sample chunk:\n#{all_chunks.sample[:content][0..100]}...")
 else
   log_error("No code chunks were created.")
 end
 
 # Save the chunks to a JSON file
-File.write('code_chunks.json', Oj.dump(code_chunks, mode: :compat))
+Oj.dump_file(CHUNKS_FILE, all_chunks, mode: :compat)
