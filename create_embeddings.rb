@@ -1,11 +1,13 @@
 require 'oj'
 require 'colorize'
 require 'tiktoken_ruby'
+require 'pry'
 
 PACKAGE_STATUS_FILE = 'packages_status.json'
 CHUNKS_FILE = 'code_chunks.json'
 CHUNK_SIZE = 300
 OVERLAP_SIZE = 30
+TIKTOKEN_ENCODER = Tiktoken.encoding_for_model("gpt-4")
 
 def log_success(message)
   puts message.green
@@ -47,25 +49,37 @@ enabled_packages.each do |package_name, details|
   end
 end
 
+    # # Log the number of tokens in the current chunk
+    # puts "Chunk from #{start_index} to #{end_index} has #{chunk_tokens.size} tokens."
+
+    # # Break the loop if we're at the end of the tokens
+    # break if end_index == tokens.size - 1
+
 def split_into_chunks(content)
   return [] if content.nil?
 
   chunks = []
-  tokens = content.split
-  start_index = 0
+  tokens = TIKTOKEN_ENCODER.encode(content)
+  current_token_count = 0
+  current_chunk = ""
 
-  while start_index < tokens.size
-    end_index = [start_index + CHUNK_SIZE - 1, tokens.size - 1].min
-    puts "Start index: #{start_index}, End index: #{end_index}"
-    chunk = tokens[start_index..end_index].join(' ')
-    puts "Chunk created"
-    chunks << chunk
-    start_index = end_index - OVERLAP_SIZE + 1
-    start_index += 1 if end_index == tokens.size - 1
+  content.split.each_with_index do |word, idx|
+    current_chunk += word + " "
+    current_token_count += 1
+
+    if current_token_count >= CHUNK_SIZE || idx == content.split.size - 1
+      chunks << current_chunk.strip
+  
+      puts "Chunk created. Current token count: #{current_token_count} tokens."
+
+      current_chunk = content.split[idx - OVERLAP_SIZE + 1..idx].join(" ") + " " if idx != content.split.size - 1
+      current_token_count = OVERLAP_SIZE
+    end
   end
 
   chunks
 end
+    
 
 def generate_chunks_for_file(file_path)
   content = read_file_content(file_path)
@@ -76,7 +90,7 @@ def generate_chunks_for_file(file_path)
       line_numbers: chunk.lines.map.with_index { |_, idx| idx + 1 }
     }
     {
-      content: metadata.to_json + "\n" + chunk,
+      content: Oj.dump(metadata) + "\n" + chunk,
       metadata: metadata
     }
   end
@@ -85,8 +99,7 @@ end
 all_chunks = files_to_process.flat_map { |file_path| generate_chunks_for_file(file_path) }
 
 # Display statistics  
-tiktoken_encoder = Tiktoken.encoding_for_model("gpt-4")
-encoded_sizes = all_chunks.map { |chunk| tiktoken_encoder.encode(chunk[:content]).size }
+encoded_sizes = all_chunks.map { |chunk| TIKTOKEN_ENCODER.encode(chunk[:content]).size }
 
 # Display some statistics and a sample chunk
 log_success("Processed #{files_to_process.length} files from #{enabled_packages.length} packages.")
@@ -107,4 +120,4 @@ else
 end
 
 # Save the chunks to a JSON file
-Oj.dump_file(CHUNKS_FILE, all_chunks, mode: :compat)
+Oj.to_file(CHUNKS_FILE, all_chunks, mode: :compat)

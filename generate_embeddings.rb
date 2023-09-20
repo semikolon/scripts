@@ -52,7 +52,7 @@ def load_cache
 end
 
 def save_cache(cache)
-  Oj.dump_file(CACHE_FILE, cache, mode: :compat)
+  Oj.to_file(CACHE_FILE, cache, mode: :compat)
 end
 
 # Load the chunks from the previous script
@@ -69,7 +69,8 @@ end
 embeddings = []
 
 chunks.each do |chunk|
-  file_path = chunk[:file_path]
+  file_path = chunk[:metadata][:filepath] + '/' + chunk[:metadata][:filename]
+  puts "Processing from line #{chunk[:metadata][:line_numbers].first} of #{file_path}...".colorize(:yellow)
   begin
     file_content = File.read(file_path)
     file_hash = Digest::SHA256.hexdigest(file_content)
@@ -99,4 +100,4 @@ end
 save_cache(cache)
 
 # Save the embeddings for the next step
-Oj.dump_file('embeddings.json', embeddings, mode: :compat) if embeddings.any?
+Oj.to_file('embeddings.json', embeddings, mode: :compat) if embeddings.any?
