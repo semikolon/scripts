@@ -49,48 +49,65 @@ enabled_packages.each do |package_name, details|
   end
 end
 
-    # # Log the number of tokens in the current chunk
-    # puts "Chunk from #{start_index} to #{end_index} has #{chunk_tokens.size} tokens."
+# # Log the number of tokens in the current chunk
+# puts "Chunk from #{start_index} to #{end_index} has #{chunk_tokens.size} tokens."
 
-    # # Break the loop if we're at the end of the tokens
-    # break if end_index == tokens.size - 1
+# # Break the loop if we're at the end of the tokens
+# break if end_index == tokens.size - 1
 
 def split_into_chunks(content)
   return [] if content.nil?
 
   chunks = []
-  tokens = TIKTOKEN_ENCODER.encode(content)
-  current_token_count = 0
-  current_chunk = ""
+  buffer = []
+  current_line_number = 1
+  start_line = 1
 
-  content.split.each_with_index do |word, idx|
-    current_chunk += word + " "
-    current_token_count += 1
+  content.each_line do |line|
+    words = line.split
+    buffer.concat(words)
 
-    if current_token_count >= CHUNK_SIZE || idx == content.split.size - 1
-      chunks << current_chunk.strip
-  
-      puts "Chunk created. Current token count: #{current_token_count} tokens."
-
-      current_chunk = content.split[idx - OVERLAP_SIZE + 1..idx].join(" ") + " " if idx != content.split.size - 1
-      current_token_count = OVERLAP_SIZE
+    if buffer.size >= CHUNK_SIZE
+      chunks << {
+        content: buffer.join(' '),
+        metadata: {
+          line_numbers: [start_line, current_line_number]
+        }
+      }
+      buffer = buffer[-OVERLAP_SIZE..-1] || []
+      start_line = current_line_number - OVERLAP_SIZE + 1
     end
+
+    current_line_number += 1
+  end
+
+  # Handle any remaining content in the buffer
+  unless buffer.empty?
+    chunks << {
+      content: buffer.join(' '),
+      metadata: {
+        line_numbers: [start_line, current_line_number - 1]
+      }
+    }
   end
 
   chunks
-end
-    
+end    
 
 def generate_chunks_for_file(file_path)
   content = read_file_content(file_path)
-  split_into_chunks(content).map do |chunk|
+  chunks = split_into_chunks(content)
+
+  # Annotate each chunk with additional metadata
+  chunks.map do |chunk|
     metadata = {
       filename: File.basename(file_path),
       filepath: File.dirname(file_path),
-      line_numbers: chunk.lines.map.with_index { |_, idx| idx + 1 }
+      line_numbers: chunk[:metadata][:line_numbers]
     }
+    # Metadata should be fed to GPT-4 in the end, so it is included in :content to be part of the embedding
     {
-      content: Oj.dump(metadata) + "\n" + chunk,
+      content: Oj.dump(metadata) + "\n" + chunk[:content],
       metadata: metadata
     }
   end
