@@ -62,54 +62,35 @@ def split_into_chunks(content)
   chunks = []
   lines = content.split("\n")
   line_index = 0
-  buffer = []
-  prev_buffer = nil
 
   while line_index < lines.size
-    chunk_start_line = line_index + 1
-    current_line_words = lines[line_index].split
+    chunk_start_line = line_index
+    chunk_lines = lines[line_index, 10] || [] # Initial guess of 10 lines
 
-    # Add lines to the buffer until we exceed CHUNK_SIZE
-    while TIKTOKEN_ENCODER.encode((buffer + current_line_words).join(' ')).size <= CHUNK_SIZE && line_index < lines.size
-      buffer += current_line_words
-      line_index += 1
-      current_line_words = lines[line_index].split if line_index < lines.size
+    while TIKTOKEN_ENCODER.encode(chunk_lines.join("\n")).size < 300 && (line_index + chunk_lines.size) < lines.size
+      chunk_lines << lines[line_index + chunk_lines.size]
     end
 
-    # If buffer size exceeds CHUNK_SIZE, remove lines from the end until it fits
-    while TIKTOKEN_ENCODER.encode(buffer.join(' ')).size > CHUNK_SIZE
-      removed_line = buffer.pop.split
-      line_index -= 1
+    while TIKTOKEN_ENCODER.encode(chunk_lines.join("\n")).size > 400
+      chunk_lines.pop
     end
 
-    chunk_end_line = line_index
+    chunk_end_line = chunk_start_line + chunk_lines.size - 1
     chunk = {
-      content: buffer.join(' '),
+      content: chunk_lines.join("\n"),
       metadata: {
         line_numbers: (chunk_start_line..chunk_end_line).to_a
       }
     }
     chunks << chunk
-    puts "Chunk created from line #{chunk_start_line} to #{chunk_end_line}." # Debugging
-
-    # If the buffer hasn't changed, we're stuck in a loop, so break out
-    if buffer == prev_buffer
-      break
-    end
-
-    # Save the current buffer to compare in the next iteration
-    prev_buffer = buffer.dup
-
-    # Clear the buffer for the next chunk and backtrack by OVERLAP_SIZE for overlapping
-    buffer.clear
-
-    # If we've reached the end of the lines or the remaining content is smaller than the OVERLAP_SIZE, break out of the loop
-    if line_index >= lines.size - 1 || (lines.size - line_index) <= OVERLAP_SIZE
-      break
-    end
+    puts "Chunk created: #{chunk[:metadata][:line_numbers]}"
     
-    line_index = chunk_end_line - OVERLAP_SIZE
-    line_index = [line_index, 0].max # Ensure it doesn't go negative
+    # Check if chunk_lines is empty or if we're stuck in a loop
+    if chunk_lines.empty? || line_index + chunk_lines.size - OVERLAP_SIZE == line_index
+      break
+    end
+
+    line_index += chunk_lines.size - OVERLAP_SIZE # Considering an overlap of 4 lines
   end
 
   chunks
