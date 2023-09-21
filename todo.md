@@ -7,19 +7,19 @@
     - [x]  Update the chunking algorithm to include overlaps.
 - [x]  Update the `create_embeddings.rb` script.
     - [x]  Integrate the new chunking logic.
-    - [ ]  Test with sample codebases for validation.
+    - [x]  Test with sample codebases for validation.
 
 ### 2. Metadata Capture
 
 ***Why:** Metadata provides crucial context for each code chunk, enabling accurate git patch generation and ensuring that the AI model can reference specific parts of the codebase.*
 
-- [ ]  Modify the chunking process.
-    - [ ]  Extract `filename` for each chunk.
-    - [ ]  Determine and store the relative `filepath`.
-    - [ ]  Capture an array of `line_numbers`.
-- [ ]  Validate metadata accuracy.
-    - [ ]  Cross-check with original files.
-    - [ ]  Ensure line numbers align with actual content.
+- [x]  Modify the chunking process.
+    - [x]  Extract `filename` for each chunk.
+    - [x]  Determine and store the relative `filepath`.
+    - [x]  Capture an array of `line_numbers`.
+- [x]  Validate metadata accuracy.
+    - [x]  Cross-check with original files.
+    - [x]  Ensure line numbers align with actual content.
 
 ### 3. Embedding Generation
 
