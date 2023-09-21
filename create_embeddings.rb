@@ -49,13 +49,6 @@ enabled_packages.each do |package_name, details|
   end
 end
 
-# # Log the number of tokens in the current chunk
-# puts "Chunk from #{start_index} to #{end_index} has #{chunk_tokens.size} tokens."
-
-# # Break the loop if we're at the end of the tokens
-# break if end_index == tokens.size - 1
-
-
 def split_into_chunks(content)
   chunks = []
   lines = content.split("\n")
@@ -86,7 +79,6 @@ def split_into_chunks(content)
       }
     }
     chunks << chunk
-    puts "Chunk created: #{chunk[:metadata][:line_numbers]}"
     
     # Check if chunk_lines is empty or if we're stuck in a loop
     if chunk_lines.empty? || line_index + chunk_lines.size - OVERLAP_SIZE == line_index

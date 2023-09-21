@@ -60,6 +60,7 @@ chunks = Oj.load_file('code_chunks.json', symbol_keys: true)
 
 # Load cache
 cache = load_cache
+puts "Loaded #{cache[:file_hashes].keys.count} file hashes from cache.".colorize(:blue)
 
 # Check for configuration changes
 if cache[:config_hash] != CONFIG_HASH
@@ -76,27 +77,42 @@ chunks.each do |chunk|
     file_hash = Digest::SHA256.hexdigest(file_content)
 
     # Check if file has changed or is new
+    # puts "Processing file: #{file_path}".colorize(:blue)
+    # puts "Cached file hash: #{cache[:file_hashes][file_path]}".colorize(:gray)
+    # puts "Current file hash: #{file_hash}".colorize(:gray)
+
+    if cache[:file_hashes][file_path]
+      puts "Found cached hash for file: #{file_path}".colorize(:green)
+    else
+      puts "No cached hash found for file: #{file_path}".colorize(:red)
+    end
+        
     if cache[:file_hashes][file_path] != file_hash
       embedding = generate_embeddings(chunk[:content])
       embeddings.concat(embedding) if embedding
 
       # Update cache
       cache[:file_hashes][file_path] = file_hash
+      puts "Updated cache for file: #{file_path}".colorize(:green)
     end
   rescue => e
     puts "Error reading file #{file_path}. Error: #{e.message}".colorize(:red)
   end
 end
 
+# Create a set of all file paths from the chunks
+file_paths_set = chunks.map { |c| c[:metadata][:filepath] + '/' + c[:metadata][:filename] }.to_set
+
 # Remove entries for deleted files from the cache
 cache[:file_hashes].keys.each do |cached_file_path|
-  unless chunks.map { |c| c[:file_path] }.include?(cached_file_path)
+  unless file_paths_set.include?(cached_file_path)
     cache[:file_hashes].delete(cached_file_path)
     puts "Removed #{cached_file_path} from cache.".colorize(:yellow)
   end
 end
 
 # Save updated cache
+puts "Saving #{cache[:file_hashes].keys.count} file hashes to cache.".colorize(:blue)
 save_cache(cache)
 
 # Save the embeddings for the next step
