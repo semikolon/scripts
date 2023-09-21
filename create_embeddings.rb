@@ -57,15 +57,18 @@ end
 
 
 def split_into_chunks(content)
-  return [] if content.nil?
-
   chunks = []
   lines = content.split("\n")
   line_index = 0
 
+  # Use the informed guess of 50 lines as the starting chunk size
+  # We previously scanned a lot of code and found each line of code roughly has 6.8 tokens.
+  # 50 x 6.8 = 340 tokens. So we'll include 50 lines and adjust if it's too big or too small.
+  estimated_chunk_size = 50
+
   while line_index < lines.size
     chunk_start_line = line_index
-    chunk_lines = lines[line_index, 10] || [] # Initial guess of 10 lines
+    chunk_lines = lines[line_index, estimated_chunk_size] || []
 
     while TIKTOKEN_ENCODER.encode(chunk_lines.join("\n")).size < 300 && (line_index + chunk_lines.size) < lines.size
       chunk_lines << lines[line_index + chunk_lines.size]
@@ -90,12 +93,11 @@ def split_into_chunks(content)
       break
     end
 
-    line_index += chunk_lines.size - OVERLAP_SIZE # Considering an overlap of 4 lines
+    line_index += chunk_lines.size - OVERLAP_SIZE
   end
 
   chunks
 end
-
 
 def generate_chunks_for_file(file_path)
   content = read_file_content(file_path)
