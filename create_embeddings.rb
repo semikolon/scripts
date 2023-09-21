@@ -82,7 +82,7 @@ def split_into_chunks(content)
     chunk = {
       content: chunk_lines.join("\n"),
       metadata: {
-        line_numbers: (chunk_start_line..chunk_end_line).to_a
+        line_numbers: (chunk_start_line..chunk_end_line).map { |num| num + 1 }
       }
     }
     chunks << chunk
