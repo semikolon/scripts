@@ -6,7 +6,7 @@ require 'pry'
 PACKAGE_STATUS_FILE = 'packages_status.json'
 CHUNKS_FILE = 'code_chunks.json'
 CHUNK_SIZE = 300
-OVERLAP_SIZE = 30
+OVERLAP_SIZE = 4 # lines of code, not tokens
 TIKTOKEN_ENCODER = Tiktoken.encoding_for_model("gpt-4")
 
 def log_success(message)
@@ -55,44 +55,66 @@ end
 # # Break the loop if we're at the end of the tokens
 # break if end_index == tokens.size - 1
 
+
 def split_into_chunks(content)
   return [] if content.nil?
 
   chunks = []
+  lines = content.split("\n")
+  line_index = 0
   buffer = []
-  current_line_number = 1
-  start_line = 1
+  prev_buffer = nil
 
-  content.each_line do |line|
-    words = line.split
-    buffer.concat(words)
+  while line_index < lines.size
+    chunk_start_line = line_index + 1
+    current_line_words = lines[line_index].split
 
-    if buffer.size >= CHUNK_SIZE
-      chunks << {
-        content: buffer.join(' '),
-        metadata: {
-          line_numbers: [start_line, current_line_number]
-        }
-      }
-      buffer = buffer[-OVERLAP_SIZE..-1] || []
-      start_line = current_line_number - OVERLAP_SIZE + 1
+    # Add lines to the buffer until we exceed CHUNK_SIZE
+    while TIKTOKEN_ENCODER.encode((buffer + current_line_words).join(' ')).size <= CHUNK_SIZE && line_index < lines.size
+      buffer += current_line_words
+      line_index += 1
+      current_line_words = lines[line_index].split if line_index < lines.size
     end
 
-    current_line_number += 1
-  end
+    # If buffer size exceeds CHUNK_SIZE, remove lines from the end until it fits
+    while TIKTOKEN_ENCODER.encode(buffer.join(' ')).size > CHUNK_SIZE
+      removed_line = buffer.pop.split
+      line_index -= 1
+    end
 
-  # Handle any remaining content in the buffer
-  unless buffer.empty?
-    chunks << {
+    chunk_end_line = line_index
+    chunk = {
       content: buffer.join(' '),
       metadata: {
-        line_numbers: [start_line, current_line_number - 1]
+        line_numbers: (chunk_start_line..chunk_end_line).to_a
       }
     }
+    chunks << chunk
+    puts "Chunk created from line #{chunk_start_line} to #{chunk_end_line}." # Debugging
+
+    # If the buffer hasn't changed, we're stuck in a loop, so break out
+    if buffer == prev_buffer
+      break
+    end
+
+    # Save the current buffer to compare in the next iteration
+    prev_buffer = buffer.dup
+
+    # Clear the buffer for the next chunk and backtrack by OVERLAP_SIZE for overlapping
+    buffer.clear
+
+    # If we've reached the end of the lines or the remaining content is smaller than the OVERLAP_SIZE, break out of the loop
+    if line_index >= lines.size - 1 || (lines.size - line_index) <= OVERLAP_SIZE
+      break
+    end
+    
+    line_index = chunk_end_line - OVERLAP_SIZE
+    line_index = [line_index, 0].max # Ensure it doesn't go negative
   end
 
   chunks
-end    
+end
+
 
 def generate_chunks_for_file(file_path)
   content = read_file_content(file_path)
