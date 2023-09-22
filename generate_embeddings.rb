@@ -1,7 +1,6 @@
 require 'net/http'
 require 'oj'
 require 'colorize'
-require 'digest'
 
 if ENV['OPENAI_API_KEY'].to_s.strip.empty?
   puts "Error: OPENAI_API_KEY environment variable is missing or empty.".colorize(:red)
@@ -15,9 +14,6 @@ HEADERS = {
   "Authorization" => "Bearer #{OPENAI_API_KEY}",
   "Content-Type" => "application/json"
 }
-
-CACHE_FILE = 'embeddings_cache.json'
-CONFIG_HASH = Digest::SHA256.hexdigest(OPENAI_API_ENDPOINT + OPENAI_API_KEY)
 
 def generate_embeddings(chunk)
   payload = {
@@ -46,26 +42,8 @@ def post_to_openai(payload)
   http.request(request)
 end
 
-def load_cache
-  return {} unless File.exist?(CACHE_FILE)
-  Oj.load_file(CACHE_FILE, symbol_keys: true)
-end
-
-def save_cache(cache)
-  Oj.to_file(CACHE_FILE, cache, mode: :compat)
-end
-
 # Load the chunks from the previous script
 chunks = Oj.load_file('code_chunks.json', symbol_keys: true)
-
-# Load cache
-cache = load_cache
-puts "Loaded #{cache[:file_hashes].keys.count} file hashes from cache.".colorize(:blue)
-
-# Check for configuration changes
-if cache[:config_hash] != CONFIG_HASH
-  cache = { config_hash: CONFIG_HASH, file_hashes: {} }
-end
 
 embeddings = []
 
@@ -74,46 +52,14 @@ chunks.each do |chunk|
   puts "Processing from line #{chunk[:metadata][:line_numbers].first} of #{file_path}...".colorize(:yellow)
   begin
     file_content = File.read(file_path)
-    file_hash = Digest::SHA256.hexdigest(file_content)
-
-    # Check if file has changed or is new
-    # puts "Processing file: #{file_path}".colorize(:blue)
-    # puts "Cached file hash: #{cache[:file_hashes][file_path]}".colorize(:gray)
-    # puts "Current file hash: #{file_hash}".colorize(:gray)
-
-    if cache[:file_hashes][file_path]
-      puts "Found cached hash for file: #{file_path}".colorize(:green)
-    else
-      puts "No cached hash found for file: #{file_path}".colorize(:red)
-    end
-        
-    if cache[:file_hashes][file_path] != file_hash
-      embedding = generate_embeddings(chunk[:content])
-      embeddings.concat(embedding) if embedding
-
-      # Update cache
-      cache[:file_hashes][file_path] = file_hash
-      puts "Updated cache for file: #{file_path}".colorize(:green)
-    end
+    # TODO maybe store the embeddings with the filepath as key?
+    # That way we can avoid re-generating the embeddings for the same file
+    embedding = generate_embeddings(chunk[:content])
+    embeddings.concat(embedding) if embedding
   rescue => e
     puts "Error reading file #{file_path}. Error: #{e.message}".colorize(:red)
   end
 end
-
-# Create a set of all file paths from the chunks
-file_paths_set = chunks.map { |c| c[:metadata][:filepath] + '/' + c[:metadata][:filename] }.to_set
-
-# Remove entries for deleted files from the cache
-cache[:file_hashes].keys.each do |cached_file_path|
-  unless file_paths_set.include?(cached_file_path)
-    cache[:file_hashes].delete(cached_file_path)
-    puts "Removed #{cached_file_path} from cache.".colorize(:yellow)
-  end
-end
-
-# Save updated cache
-puts "Saving #{cache[:file_hashes].keys.count} file hashes to cache.".colorize(:blue)
-save_cache(cache)
 
 # Save the embeddings for the next step
 Oj.to_file('embeddings.json', embeddings, mode: :compat) if embeddings.any?

@@ -1,12 +1,15 @@
 require 'oj'
 require 'colorize'
 require 'tiktoken_ruby'
+require 'digest'
 require 'pry'
 
 PACKAGE_STATUS_FILE = 'packages_status.json'
+CACHE_FILE = 'code_cache.json'
 CHUNKS_FILE = 'code_chunks.json'
 CHUNK_SIZE = 300
 OVERLAP_SIZE = 4 # lines of code, not tokens
+CONFIG_HASH = Digest::SHA256.hexdigest(CHUNK_SIZE + OVERLAP_SIZE)
 TIKTOKEN_ENCODER = Tiktoken.encoding_for_model("gpt-4")
 
 def log_success(message)
@@ -15,6 +18,24 @@ end
 
 def log_error(message)
   puts message.red
+end
+
+def load_cache
+  return {} unless File.exist?(CACHE_FILE)
+  Oj.load_file(CACHE_FILE, symbol_keys: true)
+end
+
+def save_cache(cache)
+  Oj.to_file(CACHE_FILE, cache, mode: :compat)
+end
+
+# Load cache
+cache = load_cache
+puts "Loaded #{cache[:file_hashes].keys.count} file hashes from cache.".colorize(:blue)
+
+# Check for configuration changes
+if cache[:config_hash] != CONFIG_HASH
+  cache = { config_hash: CONFIG_HASH, file_hashes: {} }
 end
 
 # Read the file content and ensure it is UTF-8 encoded
@@ -63,11 +84,11 @@ def split_into_chunks(content)
     chunk_start_line = line_index
     chunk_lines = lines[line_index, estimated_chunk_size] || []
 
-    while TIKTOKEN_ENCODER.encode(chunk_lines.join("\n")).size < 300 && (line_index + chunk_lines.size) < lines.size
+    while TIKTOKEN_ENCODER.encode(chunk_lines.join("\n")).size < CHUNK_SIZE && (line_index + chunk_lines.size) < lines.size
       chunk_lines << lines[line_index + chunk_lines.size]
     end
 
-    while TIKTOKEN_ENCODER.encode(chunk_lines.join("\n")).size > 400
+    while TIKTOKEN_ENCODER.encode(chunk_lines.join("\n")).size > CHUNK_SIZE + 100
       chunk_lines.pop
     end
 
@@ -110,7 +131,45 @@ def generate_chunks_for_file(file_path)
   end
 end
 
-all_chunks = files_to_process.flat_map { |file_path| generate_chunks_for_file(file_path) }
+all_chunks = files_to_process.flat_map do |file_path|
+  file_content = File.read(file_path)
+  file_hash = Digest::SHA256.hexdigest(file_content)
+
+  # Check if file has changed or is new
+  # puts "Processing file: #{file_path}".colorize(:blue)
+  # puts "Cached file hash: #{cache[:file_hashes][file_path]}".colorize(:gray)
+  # puts "Current file hash: #{file_hash}".colorize(:gray)
+  
+  if cache[:file_hashes][file_path]
+    puts "Found cached hash for file: #{file_path}".colorize(:green)
+  else
+    puts "No cached hash found for file: #{file_path}".colorize(:red)
+  end
+      
+  if cache[:file_hashes][file_path] != file_hash
+    generate_chunks_for_file(file_path)
+  end
+  
+  # Update cache
+  cache[:file_hashes][file_path] = file_hash
+  puts "Updated cache for file: #{file_path}".colorize(:green)
+end
+
+
+# Create a set of all file paths from the chunks
+file_paths_set = chunks.map { |c| c[:metadata][:filepath] + '/' + c[:metadata][:filename] }.to_set
+# Remove entries for deleted files from the cache
+cache[:file_hashes].keys.each do |cached_file_path|
+  unless file_paths_set.include?(cached_file_path)
+    cache[:file_hashes].delete(cached_file_path)
+    puts "Removed #{cached_file_path} from cache.".colorize(:yellow)
+  end
+end
+
+# Save updated cache
+puts "Saving #{cache[:file_hashes].keys.count} file hashes to cache.".colorize(:blue)
+save_cache(cache)
+
 
 # Display statistics  
 encoded_sizes = all_chunks.map { |chunk| TIKTOKEN_ENCODER.encode(chunk[:content]).size }
