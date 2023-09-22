@@ -132,7 +132,7 @@ def generate_chunks_for_file(file_path)
 end
 
 all_chunks = files_to_process.flat_map do |file_path|
-  file_content = File.read(file_path)
+  file_content = read_file_content(file_path)
   file_hash = Digest::SHA256.hexdigest(file_content)
 
   # Check if file has changed or is new
