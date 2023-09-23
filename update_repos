@@ -104,7 +104,7 @@ else
   # Support for Python requirements.txt is forthcoming.
 end
 
-File.write(PACKAGE_STATUS_FILE, Oj.dump(package_statuses, mode: :compat))
+Oj.to_file(PACKAGE_STATUS_FILE, package_statuses, mode: :compat)
 
 require_relative 'create_embeddings'
 
@@ -115,5 +115,3 @@ end
 
 require_relative 'generate_embeddings'
 require_relative 'upload_embeddings'
-
-# TODO: Obtain vector representations and upload to Pinecone
