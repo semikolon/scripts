@@ -32,7 +32,7 @@ def prompt_for_inclusion(package_name, modify_mode, package_statuses)
   # Directly access the enabled status from the package_statuses hash
   enabled_status = package_statuses.dig(package_name.to_sym, :enabled)
   
-  puts "Debug: Package: #{package_name}, Enabled Status: #{enabled_status}" # Debug print
+  # puts "Debug: Package: #{package_name}, Enabled Status: #{enabled_status}" # Debug print
   
   # If modify_mode is false and the enabled status exists and is not nil, return the enabled status
   return enabled_status if !modify_mode && !enabled_status.nil?
@@ -78,7 +78,7 @@ if File.exist?('Gemfile')
     gem_name = spec.name
 
     if local_path && File.directory?(local_path)
-      log_success("Found local path for gem #{gem_name}: #{local_path}")
+      # log_success("Found local path for gem #{gem_name}: #{local_path}")
       package_statuses[gem_name.to_sym] = { path: local_path, enabled: prompt_for_inclusion(gem_name, modify_mode, package_statuses) }
     else
       log_error("Local path not found for gem: #{gem_name}")

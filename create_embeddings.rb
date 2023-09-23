@@ -4,7 +4,7 @@ require 'tiktoken_ruby'
 require 'digest'
 require 'pry'
 
-PACKAGE_STATUS_FILE = 'packages_status.json'
+# PACKAGE_STATUS_FILE = 'packages_status.json'
 CACHE_FILE = 'code_cache.json'
 CHUNKS_FILE = 'code_chunks.json'
 CHUNK_SIZE = 300
@@ -22,7 +22,7 @@ end
 
 def load_cache
   return {} unless File.exist?(CACHE_FILE)
-  Oj.load_file(CACHE_FILE, symbol_keys: true)
+  Oj.load_file(CACHE_FILE)
 end
 
 def save_cache(cache)
@@ -32,13 +32,13 @@ end
 # Load cache
 cache = load_cache
 unless cache.nil? || cache.empty?
-  puts "Loaded #{cache[:file_hashes].keys.count} file hashes from cache.".colorize(:blue)
+  puts "Loaded #{cache['file_hashes'].keys.count} file hashes from cache.".colorize(:blue)
 else
   puts "No cache found.".colorize(:blue)
 end
 
 # Check for configuration changes
-if cache[:config_hash] != CONFIG_HASH
+if cache['config_hash'] != CONFIG_HASH
   cache = { config_hash: CONFIG_HASH, file_hashes: {} }
 end
 
@@ -141,22 +141,23 @@ all_chunks = files_to_process.flat_map do |file_path|
 
   # Check if file has changed or is new
   # puts "Processing file: #{file_path}".colorize(:blue)
-  # puts "Cached file hash: #{cache[:file_hashes][file_path]}".colorize(:gray)
+  # puts "Cached file hash: #{cache['file_hashes'][file_path]}".colorize(:gray)
   # puts "Current file hash: #{file_hash}".colorize(:gray)
   
-  if cache[:file_hashes][file_path]
-    puts "Found cached hash for file: #{file_path}".colorize(:green)
-  else
-    puts "No cached hash found for file: #{file_path}".colorize(:red)
-  end
+  # if cache['file_hashes'][file_path]
+  #   puts "Found cached hash for file: #{file_path}".colorize(:green)
+  # else
+  #   puts "No cached hash found for file: #{file_path}".colorize(:red)
+  # end
   
-  if cache[:file_hashes][file_path] != file_hash
+  if cache['file_hashes'][file_path] != file_hash
+    # puts "Cached hash does not match on-disk hash for file: #{file_path}".colorize(:red)
     # Generate chunks if file hash is different
     chunks = generate_chunks_for_file(file_path)
     
     # Update cache
-    cache[:file_hashes][file_path] = file_hash
-    puts "Updated cache for file: #{file_path}".colorize(:green)
+    cache['file_hashes'][file_path] = file_hash
+    puts "Generated chunks and updated cache for file: #{file_path}".colorize(:green)
     
     chunks  # Return the generated chunks
   else
@@ -171,15 +172,17 @@ file_paths_set = files_to_process.to_set
 # TODO maybe these should come from files_to_process instead?
 
 # Remove entries for deleted files from the cache
-cache[:file_hashes].keys.each do |cached_file_path|
+deleted_files = []
+cache['file_hashes'].keys.each do |cached_file_path|
   unless file_paths_set.include?(cached_file_path)
-    cache[:file_hashes].delete(cached_file_path)
-    puts "Removed #{cached_file_path} from cache.".colorize(:yellow)
+    cache['file_hashes'].delete(cached_file_path)
+    deleted_files << cached_file_path
   end
 end
+puts "Removed #{deleted_files.count} files from cache.".colorize(:yellow) if deleted_files.any?
 
 # Save updated cache
-puts "Saving #{cache[:file_hashes].keys.count} file hashes to cache.".colorize(:blue)
+puts "Saving #{cache['file_hashes'].keys.count} file hashes to cache.".colorize(:blue)
 save_cache(cache)
 
 
@@ -201,7 +204,7 @@ if all_chunks.any?
   # Displaying the first 100 characters of a random chunk
   log_success("Sample chunk:\n#{all_chunks.sample[:content][0..100]}...")
 else
-  log_error("No code chunks were created.")
+  puts "No code chunks were created.".colorize(:yellow)
 end
 
 # Save the chunks to a JSON file
