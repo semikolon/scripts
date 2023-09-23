@@ -159,6 +159,7 @@ all_chunks = files_to_process.flat_map do |file_path|
     cache['file_hashes'][file_path] = file_hash
     puts "Generated chunks and updated cache for file: #{file_path}".colorize(:green)
     
+    should_generate_embeddings = true
     chunks  # Return the generated chunks
   else
     []  # Return an empty array if no new chunks are generated
@@ -166,10 +167,7 @@ all_chunks = files_to_process.flat_map do |file_path|
 end
 
 
-# Create a set of all file paths from the chunks
-# file_paths_set = all_chunks.map { |c| c[:metadata][:filepath] + '/' + c[:metadata][:filename] }.to_set
 file_paths_set = files_to_process.to_set
-# TODO maybe these should come from files_to_process instead?
 
 # Remove entries for deleted files from the cache
 deleted_files = []
