@@ -9,7 +9,7 @@ CACHE_FILE = 'code_cache.json'
 CHUNKS_FILE = 'code_chunks.json'
 CHUNK_SIZE = 300
 OVERLAP_SIZE = 4 # lines of code, not tokens
-CONFIG_HASH = Digest::SHA256.hexdigest(CHUNK_SIZE + OVERLAP_SIZE)
+CONFIG_HASH = Digest::SHA256.hexdigest((CHUNK_SIZE + OVERLAP_SIZE).to_s)
 TIKTOKEN_ENCODER = Tiktoken.encoding_for_model("gpt-4")
 
 def log_success(message)
@@ -31,7 +31,11 @@ end
 
 # Load cache
 cache = load_cache
-puts "Loaded #{cache[:file_hashes].keys.count} file hashes from cache.".colorize(:blue)
+unless cache.nil? || cache.empty?
+  puts "Loaded #{cache[:file_hashes].keys.count} file hashes from cache.".colorize(:blue)
+else
+  puts "No cache found.".colorize(:blue)
+end
 
 # Check for configuration changes
 if cache[:config_hash] != CONFIG_HASH
@@ -145,19 +149,27 @@ all_chunks = files_to_process.flat_map do |file_path|
   else
     puts "No cached hash found for file: #{file_path}".colorize(:red)
   end
-      
-  if cache[:file_hashes][file_path] != file_hash
-    generate_chunks_for_file(file_path)
-  end
   
-  # Update cache
-  cache[:file_hashes][file_path] = file_hash
-  puts "Updated cache for file: #{file_path}".colorize(:green)
+  if cache[:file_hashes][file_path] != file_hash
+    # Generate chunks if file hash is different
+    chunks = generate_chunks_for_file(file_path)
+    
+    # Update cache
+    cache[:file_hashes][file_path] = file_hash
+    puts "Updated cache for file: #{file_path}".colorize(:green)
+    
+    chunks  # Return the generated chunks
+  else
+    []  # Return an empty array if no new chunks are generated
+  end
 end
 
 
 # Create a set of all file paths from the chunks
-file_paths_set = chunks.map { |c| c[:metadata][:filepath] + '/' + c[:metadata][:filename] }.to_set
+# file_paths_set = all_chunks.map { |c| c[:metadata][:filepath] + '/' + c[:metadata][:filename] }.to_set
+file_paths_set = files_to_process.to_set
+# TODO maybe these should come from files_to_process instead?
+
 # Remove entries for deleted files from the cache
 cache[:file_hashes].keys.each do |cached_file_path|
   unless file_paths_set.include?(cached_file_path)

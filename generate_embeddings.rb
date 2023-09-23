@@ -45,17 +45,18 @@ end
 # Load the chunks from the previous script
 chunks = Oj.load_file('code_chunks.json', symbol_keys: true)
 
-embeddings = []
+embeddings = {}
 
 chunks.each do |chunk|
   file_path = chunk[:metadata][:filepath] + '/' + chunk[:metadata][:filename]
-  puts "Processing from line #{chunk[:metadata][:line_numbers].first} of #{file_path}...".colorize(:yellow)
+  start_line = chunk[:metadata][:line_numbers].first
+  end_line = chunk[:metadata][:line_numbers].last
+  key = "#{file_path}:#{start_line}-#{end_line}"
+
+  puts "Processing from line #{start_line} to #{end_line} of #{file_path}...".colorize(:yellow)
   begin
-    file_content = File.read(file_path)
-    # TODO maybe store the embeddings with the filepath as key?
-    # That way we can avoid re-generating the embeddings for the same file
     embedding = generate_embeddings(chunk[:content])
-    embeddings.concat(embedding) if embedding
+    embeddings[key] = embedding if embedding
   rescue => e
     puts "Error reading file #{file_path}. Error: #{e.message}".colorize(:red)
   end
