@@ -58,11 +58,12 @@ chunks.each do |chunk|
   puts "Processing from line #{start_line} to #{end_line} of #{file_path}...".colorize(:yellow)
   begin
     embedding = generate_embeddings(chunk[:content])
-    if embedding 
+    if embedding
       embeddings[key] = {
         embedding: embedding,
         metadata: chunk[:metadata]
       }
+    end
   rescue => e
     puts "Error generating embedding #{key}. Error: #{e.message}".colorize(:red)
   end

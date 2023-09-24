@@ -11,7 +11,7 @@ require 'colorize'
 require 'bundler'
 require 'pry'
 
-should_generate_embeddings = false
+$should_generate_embeddings = false
 
 def log_success(message)
   puts message.green
@@ -110,7 +110,7 @@ Oj.to_file(PACKAGE_STATUS_FILE, package_statuses, mode: :compat)
 
 require_relative 'create_embeddings'
 
-unless should_generate_embeddings
+unless $should_generate_embeddings
   puts "Skipping embeddings generation and uploading.".yellow
   return
 end

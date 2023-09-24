@@ -21,9 +21,11 @@ def log_error(message)
   puts message.red
 end
 
+DEFAULT_CACHE = { 'config_hash': CONFIG_HASH, 'file_hashes': {} }
+
 def load_cache
-  return {} unless File.exist?(CACHE_FILE)
-  Oj.load_file(CACHE_FILE)
+  return DEFAULT_CACHE unless File.exist?(CACHE_FILE)
+  Oj.load_file(CACHE_FILE, symbol_keys: false)
 end
 
 def save_cache(cache)
@@ -31,16 +33,17 @@ def save_cache(cache)
 end
 
 # Load cache
-cache = load_cache
+cache = load_cache.transform_keys(&:to_s) 
+
 unless cache.nil? || cache.empty?
-  puts "Loaded #{cache['file_hashes'].keys.count} file hashes from cache.".colorize(:blue)
+  puts "Loaded #{cache['file_hashes']&.keys&.count} file hashes from cache.".colorize(:blue)
 else
   puts "No cache found.".colorize(:blue)
 end
 
 # Check for configuration changes
 if cache['config_hash'] != CONFIG_HASH
-  cache = { config_hash: CONFIG_HASH, file_hashes: {} }
+  cache = DEFAULT_CACHE
 end
 
 # Read the file content and ensure it is UTF-8 encoded
@@ -73,6 +76,7 @@ enabled_packages.each do |package_name, details|
     next if file.include?('.git') # Exclude git files
     next if file.include?('.vscode') # Exclude VS Code files
     next if file.include?('/venv/') # Exclude virtual environments
+    next if package_name == :current_project && file.include?('/node_modules/') # Exclude node_modules from the current project code
     next unless File.file?(file) && EXTENSIONS_TO_BE_INDEXED.include?(File.extname(file))
     files_to_process << file
     file_sizes[package_name] = file_sizes[package_name].to_i + File.stat(file).size
@@ -146,20 +150,10 @@ def generate_chunks_for_file(file_path)
   end
 end
 
+# Generate chunks for all files, unless matching hash is found in cache
 all_chunks = files_to_process.flat_map do |file_path|
   file_content = read_file_content(file_path)
   file_hash = Digest::SHA256.hexdigest(file_content)
-
-  # Check if file has changed or is new
-  # puts "Processing file: #{file_path}".colorize(:blue)
-  # puts "Cached file hash: #{cache['file_hashes'][file_path]}".colorize(:gray)
-  # puts "Current file hash: #{file_hash}".colorize(:gray)
-  
-  # if cache['file_hashes'][file_path]
-  #   puts "Found cached hash for file: #{file_path}".colorize(:green)
-  # else
-  #   puts "No cached hash found for file: #{file_path}".colorize(:red)
-  # end
   
   if cache['file_hashes'][file_path] != file_hash
     # puts "Cached hash does not match on-disk hash for file: #{file_path}".colorize(:red)
@@ -170,7 +164,7 @@ all_chunks = files_to_process.flat_map do |file_path|
     cache['file_hashes'][file_path] = file_hash
     puts "Generated chunks and updated cache for file: #{file_path}".colorize(:green)
     
-    should_generate_embeddings = true
+    $should_generate_embeddings = true
     chunks  # Return the generated chunks
   else
     []  # Return an empty array if no new chunks are generated
