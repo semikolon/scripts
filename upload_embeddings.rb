@@ -39,5 +39,11 @@ end
 # Load the embeddings data from the file
 embeddings_data = Oj.load_file(EMBEDDINGS_FILE, symbol_keys: true)
 
-# Upload the embeddings to Pinecone
-upload_to_pinecone(embeddings_data, pinecone_client)
+# TODO Validate the structure of embeddings data
+
+if embeddings_data
+  # Upload the embeddings to Pinecone
+  upload_to_pinecone(embeddings_data, pinecone_client)
+else
+  puts "No embeddings data found, so can't upload.".red
+end

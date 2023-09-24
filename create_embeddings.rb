@@ -165,6 +165,8 @@ all_chunks = files_to_process.flat_map do |file_path|
     puts "Generated chunks and updated cache for file: #{file_path}".colorize(:green)
     
     $should_generate_embeddings = true
+    $should_upload_embeddings = true
+
     chunks  # Return the generated chunks
   else
     []  # Return an empty array if no new chunks are generated

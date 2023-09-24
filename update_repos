@@ -11,7 +11,8 @@ require 'colorize'
 require 'bundler'
 require 'pry'
 
-$should_generate_embeddings = false
+$should_generate_embeddings = ARGV.include?('--force-generate')
+$should_upload_embeddings = ARGV.include?('--force-upload')
 
 def log_success(message)
   puts message.green
@@ -110,10 +111,14 @@ Oj.to_file(PACKAGE_STATUS_FILE, package_statuses, mode: :compat)
 
 require_relative 'create_embeddings'
 
-unless $should_generate_embeddings
-  puts "Skipping embeddings generation and uploading.".yellow
-  return
+if $should_generate_embeddings
+  require_relative 'generate_embeddings'
+else
+  puts "Skipping embeddings generation.".yellow
 end
 
-require_relative 'generate_embeddings'
-require_relative 'upload_embeddings'
+if $should_upload_embeddings
+  require_relative 'upload_embeddings'
+else
+  puts "Skipping embeddings uploading.".yellow
+end
