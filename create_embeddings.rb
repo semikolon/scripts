@@ -127,6 +127,12 @@ def generate_chunks_for_file(file_path)
       filepath: File.dirname(file_path),
       line_numbers: chunk[:metadata][:line_numbers]
     }
+    
+    # Check if the file is from the current project and adjust the filepath metadata
+    if file_path.start_with?(Dir.pwd)
+      metadata[:filepath] = File.dirname(file_path).gsub(Dir.pwd, '')
+    end
+
     # Metadata should be fed to GPT-4 in the end, so it is included in :content to be part of the embedding
     {
       content: Oj.dump(metadata) + "\n" + chunk[:content],

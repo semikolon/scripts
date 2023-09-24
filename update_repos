@@ -47,7 +47,6 @@ def prompt_for_inclusion(package_name, modify_mode, package_statuses)
   package_statuses[package_name.to_sym][:enabled] = (decision == 'y')
 end
 
-
 modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
 
 PACKAGE_STATUS_FILE = 'packages_status.json'
@@ -66,6 +65,9 @@ package_statuses.each do |package, details|
     break
   end
 end
+
+# By default we index all files from the current directory and its subdirectories
+package_statuses[:current_project] ||= { path: Dir.pwd, enabled: true }
 
 if File.exist?('Gemfile')
   log_success("Gemfile found. Processing...")
