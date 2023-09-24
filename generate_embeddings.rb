@@ -8,6 +8,8 @@ if ENV['OPENAI_API_KEY'].to_s.strip.empty?
 end
 
 # Constants
+CHUNKS_FILE ||= '.galaxybrain/code_chunks.json'
+EMBEDDINGS_FILE ||= '.galaxybrain/code_embeddings.json'
 OPENAI_API_ENDPOINT = "https://api.openai.com/v1/embeddings"
 OPENAI_API_KEY = ENV['OPENAI_API_KEY']
 HEADERS = {
@@ -43,7 +45,7 @@ def post_to_openai(payload)
 end
 
 # Load the chunks from the previous script
-chunks = Oj.load_file('code_chunks.json', symbol_keys: true)
+chunks = Oj.load_file(CHUNKS_FILE, symbol_keys: true)
 
 embeddings = {}
 
@@ -67,4 +69,4 @@ chunks.each do |chunk|
 end
 
 # Save the embeddings for the next step
-Oj.to_file('embeddings.json', embeddings, mode: :compat) if embeddings.any?
+Oj.to_file(EMBEDDINGS_FILE, embeddings, mode: :compat) if embeddings.any?

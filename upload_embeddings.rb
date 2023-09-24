@@ -2,6 +2,8 @@ require 'pinecone'
 require 'concurrent'
 require 'oj'
 
+EMBEDDINGS_FILE ||= '.galaxybrain/code_embeddings.json'
+
 # Use the Pinecone API key from the system environment variable
 PINECONE_API_KEY = ENV['PINECONE_API_KEY']
 INDEX_NAME = "galaxybrain"
@@ -35,8 +37,7 @@ def upload_to_pinecone(embeddings_data, client)
 end
 
 # Load the embeddings data from the file
-embeddings_file = "embeddings.json"
-embeddings_data = Oj.load_file(embeddings_file, symbol_keys: true)
+embeddings_data = Oj.load_file(EMBEDDINGS_FILE, symbol_keys: true)
 
 # Upload the embeddings to Pinecone
 upload_to_pinecone(embeddings_data, pinecone_client)

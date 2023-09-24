@@ -49,7 +49,7 @@ end
 
 modify_mode = ARGV.include?('-m') || ARGV.include?('--modify')
 
-PACKAGE_STATUS_FILE = 'packages_status.json'
+PACKAGE_STATUS_FILE = '.galaxybrain/packages_status.json'
 
 # Load or initialize the package statuses
 if File.exist?(PACKAGE_STATUS_FILE)
