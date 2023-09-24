@@ -29,7 +29,7 @@
     - [x]  Integrate logic to handle unique semantic chunks.
     - [ ]  Optimize the embedding generation process for efficiency.
 - [ ]  Validate embeddings.
-    - [ ]  Ensure embeddings capture distinct semantic information.
+    - [x]  Ensure embeddings capture distinct semantic information.
     - [ ]  Test retrieval-augmented generation with sample queries.
     - Comment: We can only really get a sense of this once we've finished the whole array of scripts, uploaded embeddings, and are using them from CodeGPT in VS Code. That's when we'll stress test the RAG also. The RAG is built-in to CodeGPT.
 
@@ -54,12 +54,12 @@
 
 ***Why:** While dependencies provide crucial context, the core logic and unique features of a project reside in its own code. Embeddings for the current project ensure that the AI model understands and can assist with the specific nuances and requirements of the project at hand.*
 
-- [ ]  Analyze the current project's codebase.
-    - [ ]  Identify and list potential sources of sensitive data.
-    - [ ]  Design a filtering mechanism to exclude sensitive data during embedding generation.
-- [ ]  Update the `generate_embeddings.rb` script.
-    - [ ]  Integrate logic to handle the current project's code.
-    - [ ]  Ensure sensitive data is excluded from the embeddings.
+- [x]  Analyze the current project's codebase.
+    - [x]  Identify and list potential sources of sensitive data.
+    - [x]  Design a filtering mechanism to exclude sensitive data during embedding generation.
+- [x]  Update the `generate_embeddings.rb` script.
+    - [x]  Integrate logic to handle the current project's code.
+    - [x]  Ensure sensitive data is excluded from the embeddings.
 - [ ]  Validate the embeddings.
     - [ ]  Test retrieval-augmented generation with project-specific queries.
     - [ ]  Ensure no sensitive data is retrievable from the embeddings.
