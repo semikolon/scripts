@@ -6,11 +6,17 @@ EMBEDDINGS_FILE ||= '.galaxybrain/code_embeddings.json'
 
 # Use the Pinecone API key from the system environment variable
 PINECONE_API_KEY = ENV['PINECONE_API_KEY']
+PINECONE_ENVIRONMENT = ENV['PINECONE_ENVIRONMENT'] || 'gcp-starter'
 INDEX_NAME = "galaxybrain"
 NAMESPACE = "code_embeddings"
 
+Pinecone.configure do |config|
+  config.api_key = PINECONE_API_KEY
+  config.environment = PINECONE_ENVIRONMENT
+end
+
 # Initialize the Pinecone client
-pinecone_client = Pinecone::Client.new(api_key: PINECONE_API_KEY)
+pinecone_client = Pinecone::Client.new
 
 def upload_to_pinecone(embeddings_data, client)
   index = client.index(INDEX_NAME)
@@ -25,9 +31,9 @@ def upload_to_pinecone(embeddings_data, client)
           values: item[:embedding],
           metadata: item[:metadata]
         )
-        puts "Successfully uploaded vector with ID #{key}"
+        puts "Successfully uploaded vector with ID #{key}".green
       rescue => e
-        puts "Error uploading vector with ID #{key}: #{e.message}"
+        puts "Error uploading vector with ID #{key}: #{e.message}".red
       end
     end
   end
@@ -43,7 +49,8 @@ embeddings_data = Oj.load_file(EMBEDDINGS_FILE, symbol_keys: true)
 
 if embeddings_data
   # Upload the embeddings to Pinecone
-  upload_to_pinecone(embeddings_data, pinecone_client)
+  values = upload_to_pinecone(embeddings_data, pinecone_client)
+  puts "Successfully uploaded #{values.size} vectors to Pinecone".green
 else
   puts "No embeddings data found, so can't upload.".red
 end
