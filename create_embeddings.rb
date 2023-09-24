@@ -7,6 +7,7 @@ require 'pry'
 # PACKAGE_STATUS_FILE = 'packages_status.json'
 CACHE_FILE = 'code_cache.json'
 CHUNKS_FILE = 'code_chunks.json'
+EXTENSIONS_TO_BE_INDEXED = ['.rb', '.js', '.ts', '.jsx', '.tsx', '.md', '.html', '.css', '.scss', '.json']
 CHUNK_SIZE = 300
 OVERLAP_SIZE = 4 # lines of code, not tokens
 CONFIG_HASH = Digest::SHA256.hexdigest((CHUNK_SIZE + OVERLAP_SIZE).to_s)
@@ -68,7 +69,7 @@ file_sizes = {}
 # Iterate over each enabled package and collect its files
 enabled_packages.each do |package_name, details|
   Dir["#{details[:path]}/**/*"].each do |file|
-    next unless File.file?(file) && ['.rb', '.js', '.ts', '.jsx', '.tsx', '.md', '.html', '.css', '.scss'].include?(File.extname(file))
+    next unless File.file?(file) && EXTENSIONS_TO_BE_INDEXED.include?(File.extname(file))
     files_to_process << file
     file_sizes[package_name] = file_sizes[package_name].to_i + File.stat(file).size
   end
