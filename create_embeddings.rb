@@ -134,7 +134,7 @@ def generate_chunks_for_file(file_path)
     metadata = {
       filename: File.basename(file_path),
       filepath: File.dirname(file_path),
-      line_numbers: chunk[:metadata][:line_numbers]
+      line_numbers: chunk[:metadata][:line_numbers].map(&:to_s)
     }
     
     # Check if the file is from the current project and adjust the filepath metadata

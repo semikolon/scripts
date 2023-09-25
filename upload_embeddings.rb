@@ -8,7 +8,8 @@ EMBEDDINGS_FILE ||= '.galaxybrain/code_embeddings.json'
 PINECONE_API_KEY = ENV['PINECONE_API_KEY']
 PINECONE_ENVIRONMENT = ENV['PINECONE_ENVIRONMENT'] || 'gcp-starter'
 INDEX_NAME = "galaxybrain"
-NAMESPACE = "code_embeddings"
+NAMESPACE = "" # Not supported
+# "The requested feature 'Namespaces' is not supported by the current index type 'Starter'."
 
 Pinecone.configure do |config|
   config.api_key = PINECONE_API_KEY
@@ -25,13 +26,24 @@ def upload_to_pinecone(embeddings_data, client)
   futures = embeddings_data.map do |key, item|
     Concurrent::Future.execute(executor: pool) do
       begin
-        index.upsert(
-          namespace: NAMESPACE,
-          id: key,
-          values: item[:embedding],
-          metadata: item[:metadata]
-        )
-        puts "Successfully uploaded vector with ID #{key}".green
+        payload = {
+          vectors: {   
+            namespace: NAMESPACE,
+            id: key.to_s,
+            values: item[:embedding],
+            metadata: item[:metadata]
+          }
+        }
+        # TEMPORARY: Convert line numbers to strings
+        payload[:vectors][:metadata][:line_numbers].map! { |line_number| line_number.to_s }
+        # puts "Payload to be uploaded: #{payload.inspect}"
+        response = index.upsert(payload.transform_keys(&:to_s))
+        # Check the response for any errors
+        if response.code == 200 # Assuming 200 is a success code
+          puts "Successfully uploaded vector with ID #{key}".green
+        else
+          puts "Error uploading vector with ID #{key}: #{response.body}".red
+        end
       rescue => e
         puts "Error uploading vector with ID #{key}: #{e.message}".red
       end
