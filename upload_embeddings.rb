@@ -34,10 +34,8 @@ def upload_to_pinecone(embeddings_data, client)
             metadata: item[:metadata]
           }
         }
-        # TEMPORARY: Convert line numbers to strings
-        payload[:vectors][:metadata][:line_numbers].map! { |line_number| line_number.to_s }
-        # puts "Payload to be uploaded: #{payload.inspect}"
         response = index.upsert(payload.transform_keys(&:to_s))
+
         # Check the response for any errors
         if response.code == 200 # Assuming 200 is a success code
           puts "Successfully uploaded vector with ID #{key}".green
